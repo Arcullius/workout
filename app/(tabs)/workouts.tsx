@@ -57,7 +57,6 @@ export default function WorkoutsScreen() {
       .insert({
         user_id: user.id,
         name: 'New Workout',
-        category: null,
         default_rest_seconds: 90,
       })
       .select('id')
@@ -160,7 +159,6 @@ export default function WorkoutsScreen() {
       {loading ? <ActivityIndicator color={palette.accent} /> : workouts.map((workout) => (
         <View style={styles.workoutCard} key={workout.id}>
           <Text style={styles.workoutTitle}>{workout.name}</Text>
-          <Text style={styles.workoutMeta}>{workout.category || 'Uncategorized'}</Text>
           <View style={styles.row}>
             <Pressable style={styles.secondaryButton} onPress={() => router.push(`/workouts/${workout.id}`)}>
               <Text style={styles.secondaryText}>Edit Template</Text>

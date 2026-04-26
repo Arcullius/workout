@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
@@ -10,6 +10,7 @@ import { ExerciseRow, WorkoutRow } from '@/types/db';
 
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const [workout, setWorkout] = useState<WorkoutRow | null>(null);
   const [exercises, setExercises] = useState<ExerciseRow[]>([]);
   const [workoutName, setWorkoutName] = useState('');
@@ -103,6 +104,7 @@ export default function WorkoutDetailScreen() {
             Alert.alert('Delete failed', error.message);
             return;
           }
+          router.back();
           Alert.alert('Deleted', 'Workout removed. Go back to templates.');
         },
       },
