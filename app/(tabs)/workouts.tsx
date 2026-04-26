@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -14,8 +14,6 @@ export default function WorkoutsScreen() {
   const [loading, setLoading] = useState(true);
   const [workouts, setWorkouts] = useState<WorkoutRow[]>([]);
   const [activeSessions, setActiveSessions] = useState<SessionRow[]>([]);
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState('');
 
   const load = useCallback(async () => {
     if (!user) {
@@ -53,27 +51,25 @@ export default function WorkoutsScreen() {
     if (!user) {
       return;
     }
-    if (!name.trim()) {
-      Alert.alert('Name required', 'Please provide a workout template name.');
+
+    const { data, error } = await supabase
+      .from('workouts')
+      .insert({
+        user_id: user.id,
+        name: 'New Workout',
+        category: null,
+        default_rest_seconds: 90,
+      })
+      .select('id')
+      .single();
+
+    if (error || !data) {
+      Alert.alert('Create failed', error?.message ?? 'Could not create workout.');
       return;
     }
 
-
-    const { error } = await supabase.from('workouts').insert({
-      user_id: user.id,
-      name: name.trim(),
-      category: category.trim() || null,
-      default_rest_seconds: 90,
-    });
-
-    if (error) {
-      Alert.alert('Create failed', error.message);
-      return;
-    }
-
-    setName('');
-    setCategory('');
-    await load();
+    // Navigate to the workout builder
+    router.push(`/workouts/${data.id}`);
   };
 
   const startSession = async (workout: WorkoutRow) => {
@@ -136,10 +132,7 @@ export default function WorkoutsScreen() {
         <Text style={styles.heading}>Workout Builder</Text>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Create Template</Text>
-        <TextInput placeholder="Workout name" value={name} onChangeText={setName} style={styles.input} placeholderTextColor={palette.muted} />
-        <TextInput placeholder="Category / muscle group" value={category} onChangeText={setCategory} style={styles.input} placeholderTextColor={palette.muted} />
-        <Pressable style={styles.primaryButton} onPress={createWorkout}>
+          <Pressable style={styles.primaryButton} onPress={createWorkout}>
           <Text style={styles.primaryText}>Create New Workout</Text>
         </Pressable>
       </View>

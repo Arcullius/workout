@@ -1,7 +1,7 @@
-import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -12,6 +12,7 @@ export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [workout, setWorkout] = useState<WorkoutRow | null>(null);
   const [exercises, setExercises] = useState<ExerciseRow[]>([]);
+  const [workoutName, setWorkoutName] = useState('');
   const [name, setName] = useState('');
   const [sets, setSets] = useState('3');
   const [reps, setReps] = useState('8');
@@ -20,6 +21,7 @@ export default function WorkoutDetailScreen() {
   const [dropSet, setDropSet] = useState(false);
   const [restPauseNotes, setRestPauseNotes] = useState('');
   const [notes, setNotes] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) {
@@ -37,6 +39,7 @@ export default function WorkoutDetailScreen() {
     }
 
     setWorkout((workoutData as WorkoutRow) ?? null);
+    setWorkoutName((workoutData as WorkoutRow)?.name ?? '');
     setExercises((exerciseData as ExerciseRow[]) ?? []);
   }, [id]);
 
@@ -44,14 +47,15 @@ export default function WorkoutDetailScreen() {
     load();
   }, [load]);
 
-  const addExercise = async () => {
-    if (!id || !name.trim()) {
+  const addExercise = () => {
+    if (!name.trim()) {
       Alert.alert('Missing info', 'Exercise name is required.');
       return;
     }
 
-    const { error } = await supabase.from('exercises').insert({
-      workout_id: id,
+    const newExercise: ExerciseRow = {
+      id: `temp_${Date.now()}`,
+      workout_id: id!,
       name: name.trim(),
       order_index: exercises.length,
       target_sets: Number(sets) || 3,
@@ -62,12 +66,9 @@ export default function WorkoutDetailScreen() {
       rest_pause_notes: restPauseNotes.trim() || null,
       notes: notes.trim() || null,
       rest_seconds: 90,
-    });
+    };
 
-    if (error) {
-      Alert.alert('Create failed', error.message);
-      return;
-    }
+    setExercises([...exercises, newExercise]);
 
     setName('');
     setSets('3');
@@ -77,23 +78,14 @@ export default function WorkoutDetailScreen() {
     setDropSet(false);
     setRestPauseNotes('');
     setNotes('');
-    await load();
   };
 
-  const saveOrder = async (items: ExerciseRow[]) => {
+  const saveOrder = (items: ExerciseRow[]) => {
     setExercises(items);
-    await Promise.all(
-      items.map((exercise, index) => supabase.from('exercises').update({ order_index: index }).eq('id', exercise.id)),
-    );
   };
 
-  const deleteExercise = async (exerciseId: string) => {
-    const { error } = await supabase.from('exercises').delete().eq('id', exerciseId);
-    if (error) {
-      Alert.alert('Delete failed', error.message);
-      return;
-    }
-    await load();
+  const deleteExercise = (exerciseId: string) => {
+    setExercises(exercises.filter((ex) => ex.id !== exerciseId));
   };
 
   const deleteWorkout = () => {
@@ -117,6 +109,69 @@ export default function WorkoutDetailScreen() {
     ]);
   };
 
+  const saveWorkout = async () => {
+    if (!id || !workoutName.trim()) {
+      Alert.alert('Error', 'Workout name cannot be empty.');
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // Update workout name
+      const { error: nameError } = await supabase
+        .from('workouts')
+        .update({ name: workoutName.trim() })
+        .eq('id', id);
+
+      if (nameError) {
+        Alert.alert('Save failed', nameError.message);
+        setIsSaving(false);
+        return;
+      }
+
+      // Delete old exercises
+      const { error: deleteError } = await supabase.from('exercises').delete().eq('workout_id', id);
+
+      if (deleteError) {
+        Alert.alert('Save failed', deleteError.message);
+        setIsSaving(false);
+        return;
+      }
+
+      // Insert new exercises (without temp IDs)
+      if (exercises.length > 0) {
+        const exercisesToInsert = exercises.map((ex, idx) => ({
+          workout_id: id,
+          name: ex.name,
+          order_index: idx,
+          target_sets: ex.target_sets,
+          target_reps: ex.target_reps,
+          target_weight: ex.target_weight,
+          superset_group: ex.superset_group,
+          drop_set: ex.drop_set,
+          rest_pause_notes: ex.rest_pause_notes,
+          notes: ex.notes,
+          rest_seconds: ex.rest_seconds,
+        }));
+
+        const { error: insertError } = await supabase.from('exercises').insert(exercisesToInsert);
+
+        if (insertError) {
+          Alert.alert('Save failed', insertError.message);
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      // Reload to get fresh data from database
+      await load();
+      Alert.alert('Success', 'Workout saved!');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const renderExercise = ({ item, drag, isActive }: RenderItemParams<ExerciseRow>) => (
     <Pressable onLongPress={drag} disabled={isActive} style={[styles.exerciseCard, isActive && { opacity: 0.7 }]}> 
       <View style={styles.rowBetween}>
@@ -135,7 +190,18 @@ export default function WorkoutDetailScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Text style={styles.heading}>{workout?.name ?? 'Workout Builder'}</Text>
+      <View style={styles.headerRow}>
+        <TextInput
+          style={styles.headingInput}
+          value={workoutName}
+          onChangeText={setWorkoutName}
+          placeholder="Workout name"
+          placeholderTextColor={palette.muted}
+        />
+        <Pressable style={styles.saveButton} onPress={saveWorkout} disabled={isSaving}>
+          <Text style={styles.saveButtonText}>{isSaving ? 'Saving...' : 'Save'}</Text>
+        </Pressable>
+      </View>
       <View style={styles.formCard}>
         <Text style={styles.cardTitle}>Add Exercise</Text>
         <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Exercise name" placeholderTextColor={palette.muted} />
@@ -176,6 +242,22 @@ export default function WorkoutDetailScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.navy, padding: 12, gap: 10 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  headingInput: {
+    flex: 1,
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 22,
+    padding: 0,
+    margin: 0,
+  },
+  saveButton: {
+    backgroundColor: palette.accent,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  saveButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   heading: { color: '#fff', fontWeight: '800', fontSize: 22 },
   formCard: { backgroundColor: palette.card, borderRadius: 12, padding: 10, gap: 8 },
   cardTitle: { color: palette.text, fontWeight: '800', fontSize: 16 },
