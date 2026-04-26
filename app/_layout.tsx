@@ -1,6 +1,7 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { HeaderBackButton } from '@react-navigation/elements';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -34,9 +35,63 @@ function RootNavigator() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.navy } }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="workouts/[id]" options={{ headerShown: true, title: 'Workout Builder' }} />
-        <Stack.Screen name="sessions/[id]" options={{ headerShown: true, title: 'Live Session' }} />
-        <Stack.Screen name="history/[id]" options={{ headerShown: true, title: 'Session Details' }} />
+        <Stack.Screen
+          name="workouts/[id]"
+          options={{
+            headerShown: true,
+            title: 'Workout Builder',
+            headerLeft: (props) => (
+              <HeaderBackButton
+                {...props}
+                onPress={() => {
+                  if (router.canGoBack()) {
+                    router.back();
+                    return;
+                  }
+                  router.replace('/(tabs)/workouts');
+                }}
+              />
+            ),
+          }}
+        />
+        <Stack.Screen
+          name="sessions/[id]"
+          options={{
+            headerShown: true,
+            title: 'Live Session',
+            headerLeft: (props) => (
+              <HeaderBackButton
+                {...props}
+                onPress={() => {
+                  if (router.canGoBack()) {
+                    router.back();
+                    return;
+                  }
+                  router.replace('/(tabs)/workouts');
+                }}
+              />
+            ),
+          }}
+        />
+        <Stack.Screen
+          name="history/[id]"
+          options={{
+            headerShown: true,
+            title: 'Session Details',
+            headerLeft: (props) => (
+              <HeaderBackButton
+                {...props}
+                onPress={() => {
+                  if (router.canGoBack()) {
+                    router.back();
+                    return;
+                  }
+                  router.replace('/(tabs)/history');
+                }}
+              />
+            ),
+          }}
+        />
       </Stack>
       <StatusBar style="light" />
     </>
