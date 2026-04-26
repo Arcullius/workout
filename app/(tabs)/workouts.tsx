@@ -16,7 +16,6 @@ export default function WorkoutsScreen() {
   const [activeSessions, setActiveSessions] = useState<SessionRow[]>([]);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
-  const [tags, setTags] = useState('');
 
   const load = useCallback(async () => {
     if (!user) {
@@ -59,16 +58,11 @@ export default function WorkoutsScreen() {
       return;
     }
 
-    const tagList = tags
-      .split(',')
-      .map((tag) => tag.trim())
-      .filter(Boolean);
 
     const { error } = await supabase.from('workouts').insert({
       user_id: user.id,
       name: name.trim(),
       category: category.trim() || null,
-      tags: tagList.length ? tagList : null,
       default_rest_seconds: 90,
     });
 
@@ -79,7 +73,6 @@ export default function WorkoutsScreen() {
 
     setName('');
     setCategory('');
-    setTags('');
     await load();
   };
 
@@ -146,9 +139,8 @@ export default function WorkoutsScreen() {
         <Text style={styles.cardTitle}>Create Template</Text>
         <TextInput placeholder="Workout name" value={name} onChangeText={setName} style={styles.input} placeholderTextColor={palette.muted} />
         <TextInput placeholder="Category / muscle group" value={category} onChangeText={setCategory} style={styles.input} placeholderTextColor={palette.muted} />
-        <TextInput placeholder="Tags (comma-separated)" value={tags} onChangeText={setTags} style={styles.input} placeholderTextColor={palette.muted} />
         <Pressable style={styles.primaryButton} onPress={createWorkout}>
-          <Text style={styles.primaryText}>Save Workout</Text>
+          <Text style={styles.primaryText}>Create New Workout</Text>
         </Pressable>
       </View>
 
@@ -176,7 +168,6 @@ export default function WorkoutsScreen() {
         <View style={styles.workoutCard} key={workout.id}>
           <Text style={styles.workoutTitle}>{workout.name}</Text>
           <Text style={styles.workoutMeta}>{workout.category || 'Uncategorized'}</Text>
-          <Text style={styles.workoutMeta}>{workout.tags?.join(' • ') || 'No tags yet'}</Text>
           <View style={styles.row}>
             <Pressable style={styles.secondaryButton} onPress={() => router.push(`/workouts/${workout.id}`)}>
               <Text style={styles.secondaryText}>Edit Template</Text>

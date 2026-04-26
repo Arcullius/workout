@@ -11,7 +11,6 @@ create table if not exists public.workouts (
   user_id uuid not null references public.users(id) on delete cascade,
   name text not null,
   category text,
-  tags text[],
   default_rest_seconds integer default 90,
   created_at timestamptz not null default now()
 );

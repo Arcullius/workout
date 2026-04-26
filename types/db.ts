@@ -3,7 +3,6 @@ export type WorkoutRow = {
   user_id: string;
   name: string;
   category: string | null;
-  tags: string[] | null;
   default_rest_seconds: number | null;
   created_at: string;
 };
