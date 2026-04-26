@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "workout",
-    "slug": "workout",
+    "name": "Falcon FitPal",
+    "slug": "falcon-fitpal",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "workout",
+    "scheme": "falconfitpal",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -33,9 +33,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#0A1628",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#0A1628"
           }
         }
       ]

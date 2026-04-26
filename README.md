@@ -1,8 +1,21 @@
-# Welcome to your Expo app 👋
+# Falcon FitPal
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Falcon FitPal is a full-stack workout companion built with Expo + React Native and Supabase.
 
-## Get started
+## Features
+
+- Email/password auth with persistent sessions
+- Protected routes for authenticated users
+- Workout templates with exercise builder
+- Supersets, drop sets, rest-pause notes, and exercise cues
+- Drag-and-drop exercise reordering
+- Live workout logging with set completion checkboxes
+- Auto-start rest timer after set completion
+- Add/remove sets during live session
+- Session notes, workout history, and per-exercise progression table
+- Delete confirmations for workouts and session records
+
+## Setup
 
 1. Install dependencies
 
@@ -10,41 +23,32 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install
    ```
 
-2. Start the app
+2. Create `.env` file in project root:
+
+   ```bash
+   EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+3. In Supabase SQL Editor, run schema from:
+
+   - `supabase/schema.sql`
+
+4. Start app:
 
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+## Data Model
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- `users` (linked to Supabase Auth)
+- `workouts` (templates)
+- `exercises` (ordered exercise items with superset metadata)
+- `sessions` (live/completed workouts)
+- `set_logs` (per-set targets and actual logs)
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Notes
 
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- App theme uses navy background (`#0A1628`), white cards, and electric blue accents (`#1E90FF`).
+- Supabase Row Level Security policies are included in `supabase/schema.sql`.
