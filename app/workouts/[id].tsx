@@ -2,6 +2,7 @@ import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flat
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { supabase } from '@/lib/supabase';
@@ -133,7 +134,7 @@ export default function WorkoutDetailScreen() {
   );
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <Text style={styles.heading}>{workout?.name ?? 'Workout Builder'}</Text>
       <View style={styles.formCard}>
         <Text style={styles.cardTitle}>Add Exercise</Text>
@@ -169,7 +170,7 @@ export default function WorkoutDetailScreen() {
           contentContainerStyle={{ paddingBottom: 26, gap: 8 }}
         />
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { supabase } from '@/lib/supabase';
@@ -170,13 +171,14 @@ export default function SessionDetailScreen() {
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>{session?.name ?? 'Live Session'}</Text>
-      {remaining > 0 ? (
-        <View style={styles.timer}>
-          <Text style={styles.timerText}>Rest Timer: {remaining}s</Text>
-        </View>
-      ) : null}
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+        <Text style={styles.heading}>{session?.name ?? 'Live Session'}</Text>
+        {remaining > 0 ? (
+          <View style={styles.timer}>
+            <Text style={styles.timerText}>Rest Timer: {remaining}s</Text>
+          </View>
+        ) : null}
 
       {exerciseGroups.map((group) => {
         const exercise = group[0]?.exercises;
@@ -246,10 +248,11 @@ export default function SessionDetailScreen() {
         <Text style={styles.leaveText}>Leave Session (Keep Active)</Text>
       </Pressable>
 
-      <Pressable style={styles.finishButton} onPress={finishSession}>
-        <Text style={styles.finishText}>Finish Session</Text>
-      </Pressable>
-    </ScrollView>
+        <Pressable style={styles.finishButton} onPress={finishSession}>
+          <Text style={styles.finishText}>Finish Session</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

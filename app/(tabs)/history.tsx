@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { supabase } from '@/lib/supabase';
@@ -79,8 +80,9 @@ export default function HistoryScreen() {
   }, [progressRows]);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>History</Text>
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+        <Text style={styles.heading}>History</Text>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Past Sessions</Text>
@@ -94,23 +96,24 @@ export default function HistoryScreen() {
         ))}
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Per-Exercise Progress (Table)</Text>
-        {groupedProgress.length === 0 ? <Text style={styles.muted}>No logged sets yet.</Text> : null}
-        {groupedProgress.map(([exerciseName, rows]) => (
-          <View key={exerciseName} style={styles.tableBlock}>
-            <Text style={styles.tableHeading}>{exerciseName}</Text>
-            {rows.slice(0, 5).map((row, idx) => (
-              <View key={`${exerciseName}-${idx}-${row.created_at}`} style={styles.tableRow}>
-                <Text style={styles.tableCell}>{new Date(row.created_at).toLocaleDateString()}</Text>
-                <Text style={styles.tableCell}>{row.actual_weight ?? '-'} lb</Text>
-                <Text style={styles.tableCell}>{row.actual_reps ?? '-'} reps</Text>
-              </View>
-            ))}
-          </View>
-        ))}
-      </View>
-    </ScrollView>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Per-Exercise Progress (Table)</Text>
+          {groupedProgress.length === 0 ? <Text style={styles.muted}>No logged sets yet.</Text> : null}
+          {groupedProgress.map(([exerciseName, rows]) => (
+            <View key={exerciseName} style={styles.tableBlock}>
+              <Text style={styles.tableHeading}>{exerciseName}</Text>
+              {rows.slice(0, 5).map((row, idx) => (
+                <View key={`${exerciseName}-${idx}-${row.created_at}`} style={styles.tableRow}>
+                  <Text style={styles.tableCell}>{new Date(row.created_at).toLocaleDateString()}</Text>
+                  <Text style={styles.tableCell}>{row.actual_weight ?? '-'} lb</Text>
+                  <Text style={styles.tableCell}>{row.actual_reps ?? '-'} reps</Text>
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { supabase } from '@/lib/supabase';
@@ -137,8 +138,9 @@ export default function WorkoutsScreen() {
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>Workout Builder</Text>
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+        <Text style={styles.heading}>Workout Builder</Text>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Create Template</Text>
@@ -185,14 +187,15 @@ export default function WorkoutsScreen() {
           </View>
         </View>
       ))}
-      {!loading && workouts.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyEmoji}>🏋️</Text>
-          <Text style={styles.emptyTitle}>No workouts yet</Text>
-          <Text style={styles.emptySubtitle}>Create your first training template to get started.</Text>
-        </View>
-      ) : null}
-    </ScrollView>
+        {!loading && workouts.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyEmoji}>🏋️</Text>
+            <Text style={styles.emptyTitle}>No workouts yet</Text>
+            <Text style={styles.emptySubtitle}>Create your first training template to get started.</Text>
+          </View>
+        ) : null}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

@@ -1,5 +1,6 @@
 import { Link } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { useAuth } from '@/providers/auth-provider';
@@ -8,7 +9,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <Text style={styles.title}>Falcon FitPal</Text>
       <Text style={styles.subtitle}>Welcome back, {user?.email ?? 'Lifter'}.</Text>
 
@@ -21,7 +22,7 @@ export default function HomeScreen() {
         <Link href="/(tabs)/workouts" style={styles.quickAction}>Create Workout</Link>
         <Link href="/(tabs)/workouts" style={styles.quickAction}>Start Session</Link>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -33,7 +34,6 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   title: {
-    marginTop: 10,
     color: '#fff',
     fontWeight: '800',
     fontSize: 30,

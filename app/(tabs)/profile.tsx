@@ -1,4 +1,5 @@
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { useAuth } from '@/providers/auth-provider';
@@ -11,7 +12,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <Text style={styles.heading}>Profile</Text>
       <View style={styles.card}>
         <Text style={styles.label}>Email</Text>
@@ -30,7 +31,7 @@ export default function ProfileScreen() {
         }}>
         <Text style={styles.signOutText}>Sign Out</Text>
       </Pressable>
-    </View>
+    </SafeAreaView>
   );
 }
 

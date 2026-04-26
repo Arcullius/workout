@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { supabase } from '@/lib/supabase';
@@ -65,9 +66,10 @@ export default function HistoryDetailScreen() {
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>{session?.name ?? 'Session'}</Text>
-      <Text style={styles.subheading}>{session?.ended_at ? new Date(session.ended_at).toLocaleString() : 'In progress'}</Text>
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+        <Text style={styles.heading}>{session?.name ?? 'Session'}</Text>
+        <Text style={styles.subheading}>{session?.ended_at ? new Date(session.ended_at).toLocaleString() : 'In progress'}</Text>
 
       <View style={styles.card}>
         {logs.length === 0 ? <Text style={styles.muted}>No set logs available.</Text> : null}
@@ -80,10 +82,11 @@ export default function HistoryDetailScreen() {
         ))}
       </View>
 
-      <Pressable style={styles.deleteButton} onPress={deleteSession}>
-        <Text style={styles.deleteText}>Delete Session</Text>
-      </Pressable>
-    </ScrollView>
+        <Pressable style={styles.deleteButton} onPress={deleteSession}>
+          <Text style={styles.deleteText}>Delete Session</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
