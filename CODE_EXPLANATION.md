@@ -1,240 +1,389 @@
-# Falcon FitPal Code Explanation (Beginner-Friendly)
+# Falcon FitPal Code Explanation (Robust Walkthrough)
 
-This guide explains how our app is structured and why files like `[id].tsx` exist.
-
----
-
-## 1) Big Picture: How our app is organized
-
-Our app uses **Expo Router** (file-based routing). That means:
-
-- Files/folders in `app/` automatically become screens/routes.
-- Route groups like `(tabs)` and `(auth)` organize screens but usually do not appear in the URL.
-- Dynamic route files like `[id].tsx` create routes that accept parameters.
-
-Main folders we use:
-
-- `app/` → screens (routing)
-- `lib/` → clients like Supabase setup
-- `providers/` → global state/context (`AuthProvider`)
-- `types/` → TypeScript DB row shapes
-- `constants/` → colors/theme values
+This guide is a deeper explanation of how our app works end-to-end, with special focus on drag-and-drop behavior and session logging internals.
 
 ---
 
-## 2) Root app flow (`app/_layout.tsx`)
+## 1) Mental model of our app
 
-File: `app/_layout.tsx`
+We can think about our app in 4 layers:
 
-This file is our app shell and does 3 important jobs:
+1. **Routing layer** (`app/`)
+  - What screen we are on
+  - How route params like `id` get read
+2. **State/UI layer** (React state + JSX)
+  - What the user sees
+  - What changes instantly on screen
+3. **Data layer** (Supabase)
+  - What gets saved in DB tables
+  - What gets loaded and transformed
+4. **Platform layer** (safe area, gestures, haptics)
+  - iPhone notch/dynamic island spacing
+  - drag gestures
+  - tactile feedback
 
-1. Wraps the app with `GestureHandlerRootView` (needed for drag/gesture components).
-2. Wraps the app with `AuthProvider` so auth/session state is available everywhere.
-3. Defines top-level stack routes:
-   - `(auth)` for sign-in
-   - `(tabs)` for main app
-   - detail routes:
-     - `workouts/[id]`
-     - `sessions/[id]`
-     - `history/[id]`
-
-### Auth guard logic
-
-Inside `RootNavigator`, it checks:
-
-- if the user is **not logged in** and route is not auth route → redirect to `/(auth)/sign-in`
-- if the user **is logged in** and route is auth route → redirect to `/(tabs)`
-
-That is what protects our app screens.
+When debugging, it helps to ask: “Which layer is failing?”
 
 ---
 
-## 3) Why `[id].tsx` exists
+## 2) Routing architecture: why files become screens
 
-This is the part we asked about specifically.
+We use Expo Router file-based routing:
 
-`[id].tsx` is a **dynamic route file**.
+- `app/(tabs)/workouts.tsx` → workouts tab screen
+- `app/sessions/[id].tsx` → session details for one session ID
+- `app/workouts/[id].tsx` → workout builder for one workout ID
 
-Example files:
+Route groups:
 
-- `app/workouts/[id].tsx`
-- `app/sessions/[id].tsx`
-- `app/history/[id].tsx`
+- `(auth)` and `(tabs)` are organization groups
+- They are not always literal URL path text
 
-These let one file handle many records.
+Top stack registration is in `app/_layout.tsx`, where we define which screens are in the root stack and what header behavior they use.
 
-### Example
+---
 
-If we navigate to:
+## 3) Why `[id].tsx` exists (detailed)
 
-- `/sessions/abc123`
+`[id].tsx` is a dynamic route segment.
 
-Expo Router loads:
+It means:
 
-- `app/sessions/[id].tsx`
+- One screen file can represent many concrete pages
+- The concrete item is selected by the route param `id`
 
-and `id` will be `abc123`.
+Examples:
 
-Inside code:
+- `/workouts/7fb1...` opens our workout-builder details for that workout row
+- `/sessions/57aa...` opens our live session page for that session row
+
+Inside each dynamic page, we read this param:
 
 ```ts
 const { id } = useLocalSearchParams<{ id: string }>();
 ```
 
-That `id` is used in Supabase queries:
+Then we use it in Supabase queries:
 
 ```ts
 supabase.from('sessions').select('*').eq('id', id)
 ```
 
-So `[id].tsx` means:
-
-- “Use this screen for any session/workout/history item”
-- “Read the item ID from the route, then load that specific data”
-
-Without `[id].tsx`, we would need separate files for every single record, which is impossible.
+So `[id].tsx` is the bridge between navigation and database row identity.
 
 ---
 
-## 4) Session screen deep explanation (`app/sessions/[id].tsx`)
+## 4) Root layout behavior (`app/_layout.tsx`)
 
-File: `app/sessions/[id].tsx`
+Our root layout does the following:
 
-This is our **live workout screen**.
+1. Wraps app with `GestureHandlerRootView`
+  - Required for `react-native-gesture-handler`
+  - If missing, drag/gesture components can crash or not respond
+2. Wraps app with `AuthProvider`
+  - Makes auth session/user available globally
+3. Applies route protection
+  - Not logged in → force auth flow
+  - Logged in + currently in auth flow → send to tabs
+4. Defines stack detail screens
+  - `workouts/[id]`, `sessions/[id]`, `history/[id]`
 
-### State variables
+This is why we can navigate from tabs into detail pages and still have proper headers.
 
-- `session` → the current session row (`sessions` table)
-- `setLogs` → all set logs for this session (`set_logs` + exercise info)
-- `notes` → session notes text
-- `remaining` → rest timer seconds
+---
 
-### `load()`
+## 5) Supabase data model and ownership
 
-`load()` fetches in parallel:
+Our important entities:
 
-- session info from `sessions`
-- set logs + related exercise fields from `set_logs`
+- `workouts`: template containers
+- `exercises`: template exercise lines (ordered)
+- `sessions`: one performed workout instance
+- `set_logs`: set-by-set tracking rows inside a session
 
-Then it sorts by:
+Core relationship chain:
 
-1. exercise order (`order_index`)
-2. set number
+`workout` → many `exercises`
 
-so display is stable and predictable.
+`session` belongs to one `workout`
 
-### Rest timer effect
+`session` → many `set_logs`
 
-```ts
-useEffect(() => {
-  if (!remaining) return;
-  const timer = setInterval(...)
-  return () => clearInterval(timer)
-}, [remaining])
+`set_log` points to one exercise + set number + targets + actuals + completion state
+
+---
+
+## 6) Workouts tab flow (`app/(tabs)/workouts.tsx`)
+
+This screen now combines:
+
+- Template creation
+- Active session resume list
+- Template list + start/edit actions
+
+### Load behavior
+
+We load workouts and active sessions in parallel with `Promise.all`.
+
+Why this is good:
+
+- Faster first render than sequential calls
+- One loading state for both blocks
+
+### Start session behavior
+
+On “Start Session”:
+
+1. Insert a row in `sessions`
+2. Read template exercises for that workout
+3. Create seed rows in `set_logs` for each set of each exercise
+4. Navigate to `/sessions/{newSessionId}`
+
+So session pages always start with concrete rows in DB.
+
+---
+
+## 7) Workout builder flow + dragging internals (`app/workouts/[id].tsx`)
+
+This is where drag-and-drop is implemented.
+
+### Main component used
+
+`DraggableFlatList` from `react-native-draggable-flatlist`
+
+Key props we use:
+
+- `data={exercises}`
+- `keyExtractor={(item) => item.id}`
+- `renderItem={renderExercise}`
+- `onDragEnd={({ data }) => saveOrder(data)}`
+
+### How drag is initiated
+
+Inside `renderExercise`, each row receives `drag` from the library.
+
+We call it from long press:
+
+```tsx
+<Pressable onLongPress={drag} ...>
 ```
 
-This decrements timer every second and cleans the interval correctly.
+So drag starts only when long-pressing a row.
 
-### Completing a set
+### What happens when drag ends
 
-`onCompleteToggle()`:
+`onDragEnd` provides reordered list.
 
-- toggles `completed`
-- writes to Supabase (`updateSet`)
-- triggers haptic feedback
-- starts rest timer using `exercise.rest_seconds` (fallback 90)
+We call `saveOrder(data)`:
 
-### Add/remove sets during session
+1. Update local state immediately: `setExercises(items)`
+2. Persist order to Supabase by writing `order_index` for each row
 
-- `addSet(exerciseId)` inserts a new `set_logs` row with `maxSet + 1`
-- `removeSet(setId)` deletes a set row
+This is optimistic-first UI + DB sync.
 
-This supports our requirement to modify sets live.
+### Why `order_index` matters
 
-### Finish vs leave
+Everywhere we fetch exercises, we sort by `order_index`.
 
-- **Finish Session** sets `ended_at` and redirects to history.
-- **Leave Session (Keep Active)** does not set `ended_at`; it just navigates away so the session can be resumed.
+That means drag order is stable across app restarts and across users/devices.
 
----
+### Dependency requirements for drag
 
-## 5) Workouts screen (`app/(tabs)/workouts.tsx`)
+For drag to work, we need:
 
-This screen now does both:
+- `GestureHandlerRootView` at app root
+- Reanimated + gesture handler configured
+- Stable item keys (`id`)
 
-1. Template management (create/start/edit workout)
-2. Active session resume list
-
-### Why this matters
-
-We removed the separate Log tab, so this page now includes active sessions.
-
-It loads in parallel:
-
-- `workouts` owned by the user
-- active `sessions` where `ended_at IS NULL`
-
-This keeps “start session” and “resume session” in one place.
+If any of these are missing, gestures can fail or throw runtime errors.
 
 ---
 
-## 6) Data model mapping (Supabase)
+## 8) Live session flow internals (`app/sessions/[id].tsx`)
 
-Our UI maps directly to tables:
+This is our most state-heavy screen.
 
-- `workouts` → templates
-- `exercises` → exercise definitions in template
-- `sessions` → one performed workout instance
-- `set_logs` → per-set targets + actual performance
+### Local state overview
 
-Flow:
+- `session`: session metadata row
+- `setLogs`: detailed set entries joined with exercise info
+- `notes`: editable session notes
+- `remaining`: seconds for rest timer
 
-1. Start session from a workout
-2. Insert `sessions` row
-3. Seed `set_logs` from template exercises
-4. During workout, update `set_logs`
-5. Finish workout by setting `sessions.ended_at`
+### Data load strategy
+
+`load()` fetches two things in parallel:
+
+- session row
+- set log rows with exercise fields
+
+Then we normalize ordering by:
+
+1. `exercises.order_index`
+2. `set_number`
+
+This guarantees exercise grouping and set ordering are deterministic.
+
+### Grouping algorithm
+
+We create a `Map<exercise_id, setLogs[]>` and convert to array.
+
+That powers UI blocks where each exercise has its own card with multiple sets.
+
+### Updating one set
+
+`updateSet(setId, payload)`:
+
+1. Persist partial update in Supabase
+2. Patch matching set in local state
+
+This avoids full re-fetch for small edits.
+
+### Completion + haptic + timer sequence
+
+On checkbox tap:
+
+1. Toggle `completed`
+2. Write DB update
+3. Fire success haptic (`expo-haptics`)
+4. Start countdown from exercise-specific rest or default 90 sec
+
+### Timer lifecycle
+
+When `remaining > 0`:
+
+- Interval ticks every second
+- State decrements until 0
+- Cleanup clears interval when dependency changes/unmounts
+
+This prevents orphan intervals.
+
+### Dynamic set management
+
+`addSet(exerciseId)`:
+
+- Finds max existing set number for that exercise
+- Inserts `max + 1` row into DB
+- Appends inserted row to local state
+
+`removeSet(setId)`:
+
+- Deletes row in DB
+- Removes row from local state
+
+### Finish vs leave behavior
+
+- **Finish Session** sets `ended_at` and routes to history
+- **Leave Session** routes away without setting `ended_at` so session remains resumable
 
 ---
 
-## 7) Safe area + iPhone Dynamic Island
+## 9) History screens
 
-We now use `SafeAreaView` with `edges={['top']}` in key screens.
+### `app/(tabs)/history.tsx`
 
-That ensures top content starts below the status area/Dynamic Island.
+- Loads completed sessions (`ended_at` not null)
+- Loads recent set logs and groups by exercise name
+- Renders simple progression table (date, weight, reps)
 
----
+### `app/history/[id].tsx`
 
-## 8) Common confusion: route groups vs real routes
-
-Folders like `(tabs)` and `(auth)` are **group names**, not typical URL path segments.
-
-That’s why auth checks should use router segments (as our code does), not fragile string assumptions.
-
----
-
-## 9) If we want to trace one user action end-to-end
-
-Example: tap **Start Session** in workouts.
-
-1. `app/(tabs)/workouts.tsx` → `startSession(workout)`
-2. Insert into `sessions`
-3. Load exercises for workout
-4. Seed `set_logs`
-5. Navigate to `/sessions/{sessionId}`
-6. `app/sessions/[id].tsx` reads `{sessionId}` using `useLocalSearchParams`
-7. Screen loads and renders that session
+- Loads one session + all logged sets
+- Shows target vs actuals for each set
+- Supports delete with confirmation
 
 ---
 
-## 10) Quick glossary
+## 10) Auth and session persistence
 
-- **Dynamic route**: route that accepts params, e.g. `[id].tsx`
-- **Param**: value from URL/route (our `id`)
+Auth context lives in `providers/auth-provider.tsx`.
+
+It exposes:
+
+- `signIn`
+- `signUp`
+- `signOut`
+- current `session` and `user`
+
+Supabase client is configured in `lib/supabase.ts` with safe storage behavior so auth can still work when native storage APIs are unavailable.
+
+---
+
+## 11) UI/platform details
+
+### Safe area
+
+Most top-level screens use `SafeAreaView edges={['top']}` to avoid clipping under iPhone Dynamic Island/notch.
+
+### Gestures
+
+Drag support depends on gesture-handler root wrapping and draggable list row gesture lifecycle.
+
+### Haptics
+
+Set completion gives tactile confirmation using `NotificationFeedbackType.Success`.
+
+---
+
+## 12) Common debugging map
+
+If something breaks, we can check by symptom:
+
+- **Cannot navigate to detail screen**
+  - Check route file exists (`[id].tsx`) and push path is correct
+- **Page opens but no data**
+  - Verify `id` param exists and matches DB row
+- **Drag does not work**
+  - Verify app root has `GestureHandlerRootView`
+  - Verify rows call `drag` on long press
+  - Verify each row key is stable (`item.id`)
+- **Session not resumable**
+  - Check whether `ended_at` was set accidentally
+- **Back arrow odd behavior**
+  - Check header back fallback config in root stack options
+
+---
+
+## 13) End-to-end examples
+
+### Example A: reorder exercises
+
+1. Open workout builder detail `/workouts/{id}`
+2. Long-press exercise row
+3. Drag row to new position
+4. Release (drop)
+5. `onDragEnd` fires
+6. Local list updates
+7. `order_index` writes to DB
+8. Future fetches show same order
+
+### Example B: start and complete session
+
+1. Tap Start Session in workouts list
+2. Session row inserted
+3. Set logs seeded
+4. Navigate to `/sessions/{id}`
+5. Enter actual weights/reps
+6. Mark sets complete (haptic + timer)
+7. Save notes
+8. Finish session (`ended_at` set)
+9. Session appears in history list
+
+---
+
+## 14) Glossary
+
+- **Dynamic route**: route with params, e.g. `[id].tsx`
+- **Route param**: value extracted from path, e.g. `id`
+- **Optimistic UI**: update UI first, then sync backend
 - **RLS**: Row-Level Security in Supabase
-- **Session (table)**: performed workout instance
-- **Auth session**: logged-in user token/session (different concept)
+- **Auth session**: login/token state
+- **Workout session row**: performed workout instance in `sessions`
 
 ---
 
-If we want, we can also create a second markdown file with a **screen-by-screen diagram** (navigation + data flow arrows) for even easier understanding.
+If we want next, we can add a diagram section with ASCII flow charts for:
+
+- navigation flow
+- drag event lifecycle
+- session data lifecycle from template → logs → history
