@@ -1,24 +1,54 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AuthProvider, useAuth } from '@/providers/auth-provider';
+import { palette } from '@/constants/palette';
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+function RootNavigator() {
+  const router = useRouter();
+  const segments = useSegments();
+  const { session, loading } = useAuth();
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    const isAuthRoute = segments[0] === '(auth)';
+
+    if (!session && !isAuthRoute) {
+      router.replace('/(auth)/sign-in');
+      return;
+    }
+
+    if (session && isAuthRoute) {
+      router.replace('/(tabs)');
+    }
+  }, [loading, router, segments, session]);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+    <>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.navy } }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="workouts/[id]" options={{ headerShown: true, title: 'Workout Builder' }} />
+        <Stack.Screen name="sessions/[id]" options={{ headerShown: true, title: 'Live Session' }} />
+        <Stack.Screen name="history/[id]" options={{ headerShown: true, title: 'Session Details' }} />
       </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+      <StatusBar style="light" />
+    </>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <RootNavigator />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
