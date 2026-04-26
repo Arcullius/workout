@@ -12,11 +12,22 @@ function RootNavigator() {
   const segments = useSegments();
   const { session, loading } = useAuth();
 
-// test
-//test
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+    const isAuthRoute = segments[0] === '(auth)';
+
+    if (!session && !isAuthRoute) {
+      router.replace('/(auth)/sign-in');
+      return;
+    }
+
+    if (session && isAuthRoute) {
+      router.replace('/(tabs)');
+    }
+  }, [loading, router, segments, session]);
 
   return (
     <>
