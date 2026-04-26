@@ -189,14 +189,9 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        <View style={styles.quickRow}>
-          <Link href="/(tabs)/workouts" style={styles.quickAction}>
-            Create Workout
-          </Link>
-          <Link href="/(tabs)/workouts" style={styles.quickAction}>
-            Start Session
-          </Link>
-        </View>
+        <Link href="/(tabs)/workouts" style={styles.quickAction}>
+          Get Started
+        </Link>
       </ScrollView>
     </SafeAreaView>
   );
@@ -296,12 +291,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
   },
-  quickRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
   quickAction: {
-    flex: 1,
     textAlign: 'center',
     backgroundColor: palette.accent,
     color: '#fff',
