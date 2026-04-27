@@ -1,5 +1,4 @@
-import { Link } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -55,9 +54,12 @@ function calculateStreak(dateStrings: string[]) {
   let streak = 0;
   const cursor = startOfToday();
 
+  //calcuates streak
   while (true) {
+    //infinite loop
     const key = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`;
     if (!uniqueDays.has(key)) {
+      //checks if each day has a workout, breaks if not found
       break;
     }
     streak += 1;
@@ -70,6 +72,7 @@ function calculateStreak(dateStrings: string[]) {
 export default function HomeScreen() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  //stats is an object with multiple numbers
   const [stats, setStats] = useState<DashboardStats>(defaultStats);
 
   const loadDashboard = useCallback(async () => {
@@ -81,6 +84,7 @@ export default function HomeScreen() {
 
     const weekStart = startOfWeek().toISOString();
 
+    //fetching in progress sessions for the current user
     const [sessionsResult, activeResult, weekLogsResult] = await Promise.all([
       supabase
         .from('sessions')
@@ -98,6 +102,7 @@ export default function HomeScreen() {
     ]);
 
     const completedSessions = sessionsResult.data ?? [];
+
     const weekLogs = (weekLogsResult.data ?? []) as Array<{
       actual_reps: number | null;
       actual_weight: number | null;
@@ -111,6 +116,8 @@ export default function HomeScreen() {
       return sum + reps * weight;
     }, 0);
 
+
+    //assigns calculated stats
     setStats({
       streakDays: calculateStreak(completedSessions.map((session) => session.ended_at as string)),
       completedSessions: completedSessions.length,
@@ -123,12 +130,14 @@ export default function HomeScreen() {
     setLoading(false);
   }, [user]);
 
+  //makes the home page re-render stats anytime the screen is focused
   useFocusEffect(
     useCallback(() => {
       loadDashboard();
     }, [loadDashboard]),
   );
 
+  //assigns a motivational quote based on streak
   const motivation = useMemo(() => {
     if (stats.streakDays >= 7) {
       return 'Elite consistency. Keep the streak alive and push for progressive overload.';
