@@ -1,3 +1,4 @@
+// Import hooks and components for navigation, state, and UI
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -8,18 +9,22 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth-provider';
 import { SessionRow, WorkoutRow } from '@/types/db';
 
+// Main component for the Workouts tab
 export default function WorkoutsScreen() {
-  const router = useRouter();
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [workouts, setWorkouts] = useState<WorkoutRow[]>([]);
-  const [activeSessions, setActiveSessions] = useState<SessionRow[]>([]);
+  const router = useRouter(); // Used for navigation
+  const { user } = useAuth(); // Get the current user from context
+  const [loading, setLoading] = useState(true); // Loading state for async data
+  const [workouts, setWorkouts] = useState<WorkoutRow[]>([]); // List of user's workouts
+  const [activeSessions, setActiveSessions] = useState<SessionRow[]>([]); // List of active workout sessions
 
+  // Loads workouts and active sessions from Supabase
   const load = useCallback(async () => {
     if (!user) {
+      // If user is not logged in, skip loading
       return;
     }
     setLoading(true);
+    // Fetch workouts and active sessions in parallel
     const [{ data: workoutsData, error: workoutsError }, { data: sessionsData, error: sessionsError }] = await Promise.all([
       supabase.from('workouts').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       supabase
@@ -31,6 +36,7 @@ export default function WorkoutsScreen() {
     ]);
 
     if (workoutsError || sessionsError) {
+      // Show an alert if there was an error loading data
       Alert.alert('Error', workoutsError?.message ?? sessionsError?.message ?? 'Could not load workouts.');
       setLoading(false);
       return;
@@ -41,12 +47,14 @@ export default function WorkoutsScreen() {
     setLoading(false);
   }, [user]);
 
+  // Reload data when the screen is focused
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load]),
   );
 
+  // Handler to create a new workout for the user
   const createWorkout = async () => {
     if (!user) {
       return;
