@@ -27,7 +27,7 @@ export default function SessionDetailScreen() {
   const [notes, setNotes] = useState('');
   const [remaining, setRemaining] = useState(0);
 
-  const load = useCallback(async () => {
+  const loadSession = useCallback(async () => {
     if (!id) {
       return;
     }
@@ -59,13 +59,15 @@ export default function SessionDetailScreen() {
   }, [id]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadSession();
+  }, [loadSession]);
 
   useEffect(() => {
     if (!remaining) {
       return;
     }
+
+    // Keep a lightweight local timer instead of writing rest state to DB.
     const timer = setInterval(() => {
       setRemaining((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
@@ -74,29 +76,35 @@ export default function SessionDetailScreen() {
   }, [remaining]);
 
   const exerciseGroups = useMemo(() => {
-    const map = new Map<string, SetLogWithExercise[]>();
+    const byExercise = new Map<string, SetLogWithExercise[]>();
+
     setLogs.forEach((row) => {
       const key = row.exercise_id;
-      if (!map.has(key)) {
-        map.set(key, []);
+      if (!byExercise.has(key)) {
+        byExercise.set(key, []);
       }
-      map.get(key)?.push(row);
+
+      byExercise.get(key)?.push(row);
     });
-    return Array.from(map.values());
+
+    // Render by exercise so each block acts like a mini checklist.
+    return Array.from(byExercise.values());
   }, [setLogs]);
 
-  const updateSet = async (setId: string, payload: Partial<SetLogRow>) => {
+  const updateSetLog = async (setId: string, payload: Partial<SetLogRow>) => {
     const { error } = await supabase.from('set_logs').update(payload).eq('id', setId);
     if (error) {
       Alert.alert('Save failed', error.message);
       return;
     }
+
+    // Optimistic local update keeps typing/editing responsive.
     setSetLogs((prev) => prev.map((log) => (log.id === setId ? { ...log, ...payload } as SetLogWithExercise : log)));
   };
 
-  const onCompleteToggle = async (row: SetLogWithExercise) => {
+  const handleToggleComplete = async (row: SetLogWithExercise) => {
     const nextCompleted = !row.completed;
-    await updateSet(row.id, { completed: nextCompleted });
+    await updateSetLog(row.id, { completed: nextCompleted });
 
     if (nextCompleted) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -105,10 +113,10 @@ export default function SessionDetailScreen() {
     }
   };
 
-  const addSet = async (exerciseId: string) => {
+  const handleAddSet = async (exerciseId: string) => {
     const logsForExercise = setLogs.filter((log) => log.exercise_id === exerciseId);
     const maxSet = Math.max(...logsForExercise.map((log) => log.set_number), 0);
-    const template = logsForExercise[0];
+    const template = logsForExercise[0]; // Reuse current target values for the new set.
 
     const { data, error } = await supabase
       .from('set_logs')
@@ -131,7 +139,7 @@ export default function SessionDetailScreen() {
     setSetLogs((prev) => [...prev, data as SetLogWithExercise]);
   };
 
-  const removeSet = async (setId: string) => {
+  const handleRemoveSet = async (setId: string) => {
     const { error } = await supabase.from('set_logs').delete().eq('id', setId);
     if (error) {
       Alert.alert('Remove failed', error.message);
@@ -140,7 +148,7 @@ export default function SessionDetailScreen() {
     setSetLogs((prev) => prev.filter((log) => log.id !== setId));
   };
 
-  const saveNotes = async () => {
+  const handleSaveNotes = async () => {
     const { error } = await supabase.from('sessions').update({ session_notes: notes }).eq('id', id);
     if (error) {
       Alert.alert('Save failed', error.message);
@@ -149,7 +157,7 @@ export default function SessionDetailScreen() {
     Alert.alert('Saved', 'Session notes updated.');
   };
 
-  const finishSession = () => {
+  const handleFinishSession = () => {
     Alert.alert('Finish session', 'Mark this session complete?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -166,7 +174,7 @@ export default function SessionDetailScreen() {
     ]);
   };
 
-  const leaveSession = () => {
+  const handleLeaveSession = () => {
     router.replace('/(tabs)/workouts');
   };
 
@@ -189,7 +197,9 @@ export default function SessionDetailScreen() {
             <Text style={styles.meta}>Superset: {superset || 'None'}</Text>
             {group.map((set) => (
               <View key={set.id} style={styles.setRow}>
-                <Pressable style={[styles.checkbox, set.completed && styles.checkboxDone]} onPress={() => onCompleteToggle(set)}>
+                <Pressable
+                  style={[styles.checkbox, set.completed && styles.checkboxDone]}
+                  onPress={() => handleToggleComplete(set)}>
                   <Text style={styles.checkboxText}>{set.completed ? '✓' : ''}</Text>
                 </Pressable>
                 <Text style={styles.setLabel}>Set {set.set_number}</Text>
@@ -203,7 +213,7 @@ export default function SessionDetailScreen() {
                     const parsed = value ? Number(value) : null;
                     setSetLogs((prev) => prev.map((row) => (row.id === set.id ? { ...row, actual_weight: parsed } : row)));
                   }}
-                  onBlur={() => updateSet(set.id, { actual_weight: set.actual_weight ?? null })}
+                  onBlur={() => updateSetLog(set.id, { actual_weight: set.actual_weight ?? null })}
                 />
                 <TextInput
                   style={styles.smallInput}
@@ -215,14 +225,14 @@ export default function SessionDetailScreen() {
                     const parsed = value ? Number(value) : null;
                     setSetLogs((prev) => prev.map((row) => (row.id === set.id ? { ...row, actual_reps: parsed } : row)));
                   }}
-                  onBlur={() => updateSet(set.id, { actual_reps: set.actual_reps ?? null })}
+                  onBlur={() => updateSetLog(set.id, { actual_reps: set.actual_reps ?? null })}
                 />
-                <Pressable onPress={() => removeSet(set.id)}>
+                <Pressable onPress={() => handleRemoveSet(set.id)}>
                   <Text style={styles.remove}>✕</Text>
                 </Pressable>
               </View>
             ))}
-            <Pressable style={styles.addSetButton} onPress={() => addSet(group[0].exercise_id)}>
+            <Pressable style={styles.addSetButton} onPress={() => handleAddSet(group[0].exercise_id)}>
               <Text style={styles.addSetText}>+ Add Set</Text>
             </Pressable>
           </View>
@@ -239,16 +249,16 @@ export default function SessionDetailScreen() {
           multiline
           style={[styles.smallInput, { minHeight: 80, textAlignVertical: 'top' }]}
         />
-        <Pressable style={styles.addSetButton} onPress={saveNotes}>
+        <Pressable style={styles.addSetButton} onPress={handleSaveNotes}>
           <Text style={styles.addSetText}>Save Notes</Text>
         </Pressable>
       </View>
 
-      <Pressable style={styles.leaveButton} onPress={leaveSession}>
+      <Pressable style={styles.leaveButton} onPress={handleLeaveSession}>
         <Text style={styles.leaveText}>Leave Session (Keep Active)</Text>
       </Pressable>
 
-        <Pressable style={styles.finishButton} onPress={finishSession}>
+        <Pressable style={styles.finishButton} onPress={handleFinishSession}>
           <Text style={styles.finishText}>Finish Session</Text>
         </Pressable>
       </ScrollView>

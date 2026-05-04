@@ -25,11 +25,12 @@ export default function HistoryDetailScreen() {
   const [logs, setLogs] = useState<LoggedSet[]>([]);
 
   useEffect(() => {
-    const load = async () => {
+    const loadHistoryDetail = async () => {
       if (!id) {
         return;
       }
 
+      // Pull header + logs together so the screen doesn't pop in pieces.
       const [{ data: sessionData, error: sessionError }, { data: logsData, error: logsError }] = await Promise.all([
         supabase.from('sessions').select('*').eq('id', id).single(),
         supabase.from('set_logs').select('*, exercises(name)').eq('session_id', id).order('created_at', { ascending: true }),
@@ -44,10 +45,10 @@ export default function HistoryDetailScreen() {
       setLogs((logsData as LoggedSet[]) ?? []);
     };
 
-    load();
+    loadHistoryDetail();
   }, [id]);
 
-  const deleteSession = () => {
+  const handleDeleteSession = () => {
     Alert.alert('Delete session', 'This will permanently remove the session logs.', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -82,7 +83,7 @@ export default function HistoryDetailScreen() {
         ))}
       </View>
 
-        <Pressable style={styles.deleteButton} onPress={deleteSession}>
+        <Pressable style={styles.deleteButton} onPress={handleDeleteSession}>
           <Text style={styles.deleteText}>Delete Session</Text>
         </Pressable>
       </ScrollView>

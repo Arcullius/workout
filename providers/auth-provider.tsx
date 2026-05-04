@@ -15,6 +15,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 async function ensureUserProfile(user: User) {
+  // Keep a matching row in our public users table for joins and ownership checks.
   await supabase.from('users').upsert({ id: user.id, email: user.email }, { onConflict: 'id' });
 }
 
@@ -23,22 +24,40 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
+    let stillMounted = true;
+
+    const hydrateSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!stillMounted) return;
+
       setSession(data.session);
+
       if (data.session?.user) {
         await ensureUserProfile(data.session.user);
       }
-      setLoading(false);
-    });
+
+      if (stillMounted) {
+        setLoading(false);
+      }
+    };
+
+    hydrateSession();
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+      if (!stillMounted) return;
+
+      // This keeps tabs/layout in sync right after sign-in/sign-out.
       setSession(nextSession);
+
       if (nextSession?.user) {
         await ensureUserProfile(nextSession.user);
       }
     });
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      stillMounted = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   const value = useMemo<AuthContextType>(

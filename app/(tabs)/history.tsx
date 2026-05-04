@@ -1,4 +1,3 @@
-// Import necessary hooks and components from libraries and project
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -9,7 +8,6 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth-provider';
 import { SessionRow } from '@/types/db';
 
-// Define a type for exercise progress rows
 type ExerciseProgress = {
   exercise_name: string;
   actual_weight: number | null;
@@ -17,23 +15,20 @@ type ExerciseProgress = {
   created_at: string;
 };
 
-// Main component for the History tab
 export default function HistoryScreen() {
-  const router = useRouter(); // Used for navigation
-  const { user } = useAuth(); // Get the current user from context
-  const [loading, setLoading] = useState(true); // Loading state for async data
-  const [sessions, setSessions] = useState<SessionRow[]>([]); // List of user sessions
-  const [progressRows, setProgressRows] = useState<ExerciseProgress[]>([]); // Recent exercise progress
+  const router = useRouter();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [progressRows, setProgressRows] = useState<ExerciseProgress[]>([]);
 
-  // Loads session and progress data from Supabase
-  const load = useCallback(async () => {
+  const loadHistory = useCallback(async () => {
     if (!user) {
-      // If user is not logged in, skip loading
       return;
     }
+
     setLoading(true);
 
-    // Fetch all completed sessions for the user
     const { data: sessionData, error: sessionError } = await supabase
       .from('sessions')
       .select('*')
@@ -42,7 +37,6 @@ export default function HistoryScreen() {
       .order('ended_at', { ascending: false });
 
     if (sessionError) {
-      // Show an alert if there was an error loading sessions
       Alert.alert('History error', sessionError.message);
       setLoading(false);
       return;
@@ -50,7 +44,6 @@ export default function HistoryScreen() {
 
     setSessions((sessionData as SessionRow[]) ?? []);
 
-    // Fetch the latest set logs for the user (limit 20)
     const { data: logsData } = await supabase
       .from('set_logs')
       .select('actual_weight,actual_reps,created_at,exercise_id,exercises(name),sessions!inner(user_id)')
@@ -59,33 +52,37 @@ export default function HistoryScreen() {
       .order('created_at', { ascending: false })
       .limit(20);
 
-    // Normalize the logs data for easier rendering
-    const normalized = (logsData ?? []).map((row: any) => ({
+    // Keep this light for now: enough rows to show recent trends without extra paging logic.
+    const normalizedRows = (logsData ?? []).map((row: any) => ({
       exercise_name: row.exercises?.name ?? 'Exercise',
       actual_weight: row.actual_weight,
       actual_reps: row.actual_reps,
       created_at: row.created_at,
     }));
 
-    setProgressRows(normalized);
+    setProgressRows(normalizedRows);
     setLoading(false);
   }, [user]);
 
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [load]),
+      loadHistory();
+    }, [loadHistory]),
   );
 
-  const groupedProgress = useMemo(() => {
-    const map = new Map<string, ExerciseProgress[]>();
+  const groupedProgress = useMemo<Array<[string, ExerciseProgress[]]>>(() => {
+    const progressMap = new Map<string, ExerciseProgress[]>();
+
     progressRows.forEach((row) => {
-      if (!map.has(row.exercise_name)) {
-        map.set(row.exercise_name, []);
+      if (!progressMap.has(row.exercise_name)) {
+        progressMap.set(row.exercise_name, []);
       }
-      map.get(row.exercise_name)?.push(row);
+
+      progressMap.get(row.exercise_name)?.push(row);
     });
-    return Array.from(map.entries()).slice(0, 3);
+
+    // Top 3 blocks keeps the card readable on smaller phones.
+    return Array.from(progressMap.entries()).slice(0, 3);
   }, [progressRows]);
 
   return (
@@ -93,17 +90,17 @@ export default function HistoryScreen() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
         <Text style={styles.heading}>History</Text>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Past Sessions</Text>
-        {loading ? <ActivityIndicator color={palette.accent} /> : null}
-        {!loading && sessions.length === 0 ? <Text style={styles.muted}>No completed sessions yet.</Text> : null}
-        {sessions.map((session) => (
-          <Pressable key={session.id} style={styles.sessionRow} onPress={() => router.push(`/history/${session.id}`)}>
-            <Text style={styles.itemTitle}>{session.name}</Text>
-            <Text style={styles.muted}>{new Date(session.ended_at ?? session.started_at).toLocaleString()}</Text>
-          </Pressable>
-        ))}
-      </View>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Past Sessions</Text>
+          {loading ? <ActivityIndicator color={palette.accent} /> : null}
+          {!loading && sessions.length === 0 ? <Text style={styles.muted}>No completed sessions yet.</Text> : null}
+          {sessions.map((session) => (
+            <Pressable key={session.id} style={styles.sessionRow} onPress={() => router.push(`/history/${session.id}`)}>
+              <Text style={styles.itemTitle}>{session.name}</Text>
+              <Text style={styles.muted}>{new Date(session.ended_at ?? session.started_at).toLocaleString()}</Text>
+            </Pressable>
+          ))}
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Per-Exercise Progress (Table)</Text>

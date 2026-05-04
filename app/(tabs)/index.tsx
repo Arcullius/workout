@@ -34,6 +34,7 @@ function startOfToday() {
 function startOfWeek() {
   const date = startOfToday();
   const day = date.getDay();
+  // App treats Monday as the start of training week.
   const mondayOffset = day === 0 ? -6 : 1 - day;
   date.setDate(date.getDate() + mondayOffset);
   return date;
@@ -54,12 +55,10 @@ function calculateStreak(dateStrings: string[]) {
   let streak = 0;
   const cursor = startOfToday();
 
-  //calcuates streak
+  // Walk backward from today until we hit a gap.
   while (true) {
-    //infinite loop
     const key = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`;
     if (!uniqueDays.has(key)) {
-      //checks if each day has a workout, breaks if not found
       break;
     }
     streak += 1;
@@ -72,7 +71,6 @@ function calculateStreak(dateStrings: string[]) {
 export default function HomeScreen() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  //stats is an object with multiple numbers
   const [stats, setStats] = useState<DashboardStats>(defaultStats);
 
   const loadDashboard = useCallback(async () => {
@@ -84,7 +82,7 @@ export default function HomeScreen() {
 
     const weekStart = startOfWeek().toISOString();
 
-    //fetching in progress sessions for the current user
+    // The dashboard waits for all three queries so numbers stay in sync.
     const [sessionsResult, activeResult, weekLogsResult] = await Promise.all([
       supabase
         .from('sessions')
@@ -110,6 +108,7 @@ export default function HomeScreen() {
     }>;
 
     const weeklySets = weekLogs.length;
+    // Volume = reps x load, summed across completed sets this week.
     const weeklyVolume = weekLogs.reduce((sum, row) => {
       const reps = row.actual_reps ?? 0;
       const weight = row.actual_weight ?? 0;
@@ -117,7 +116,6 @@ export default function HomeScreen() {
     }, 0);
 
 
-    //assigns calculated stats
     setStats({
       streakDays: calculateStreak(completedSessions.map((session) => session.ended_at as string)),
       completedSessions: completedSessions.length,
@@ -130,14 +128,12 @@ export default function HomeScreen() {
     setLoading(false);
   }, [user]);
 
-  //makes the home page re-render stats anytime the screen is focused
   useFocusEffect(
     useCallback(() => {
       loadDashboard();
     }, [loadDashboard]),
   );
 
-  //assigns a motivational quote based on streak
   const motivation = useMemo(() => {
     if (stats.streakDays >= 7) {
       return 'Elite consistency. Keep the streak alive and push for progressive overload.';

@@ -11,7 +11,6 @@ import { ExerciseRow, WorkoutRow } from '@/types/db';
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const [workout, setWorkout] = useState<WorkoutRow | null>(null);
   const [exercises, setExercises] = useState<ExerciseRow[]>([]);
   const [workoutName, setWorkoutName] = useState('');
   const [name, setName] = useState('');
@@ -24,7 +23,7 @@ export default function WorkoutDetailScreen() {
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  const load = useCallback(async () => {
+  const loadWorkout = useCallback(async () => {
     if (!id) {
       return;
     }
@@ -39,16 +38,27 @@ export default function WorkoutDetailScreen() {
       return;
     }
 
-    setWorkout((workoutData as WorkoutRow) ?? null);
     setWorkoutName((workoutData as WorkoutRow)?.name ?? '');
     setExercises((exerciseData as ExerciseRow[]) ?? []);
   }, [id]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadWorkout();
+  }, [loadWorkout]);
 
-  const addExercise = () => {
+  const resetAddExerciseForm = () => {
+    // Reset to common defaults so adding multiple exercises stays quick.
+    setName('');
+    setSets('3');
+    setReps('8');
+    setWeight('');
+    setSupersetGroup('');
+    setDropSet(false);
+    setRestPauseNotes('');
+    setNotes('');
+  };
+
+  const handleAddExercise = () => {
     if (!name.trim()) {
       Alert.alert('Missing info', 'Exercise name is required.');
       return;
@@ -69,27 +79,19 @@ export default function WorkoutDetailScreen() {
       rest_seconds: 90,
     };
 
-    setExercises([...exercises, newExercise]);
-
-    setName('');
-    setSets('3');
-    setReps('8');
-    setWeight('');
-    setSupersetGroup('');
-    setDropSet(false);
-    setRestPauseNotes('');
-    setNotes('');
+    setExercises((prev) => [...prev, newExercise]);
+    resetAddExerciseForm();
   };
 
-  const saveOrder = (items: ExerciseRow[]) => {
+  const handleSaveOrder = (items: ExerciseRow[]) => {
     setExercises(items);
   };
 
-  const deleteExercise = (exerciseId: string) => {
-    setExercises(exercises.filter((ex) => ex.id !== exerciseId));
+  const handleDeleteExercise = (exerciseId: string) => {
+    setExercises((prev) => prev.filter((ex) => ex.id !== exerciseId));
   };
 
-  const deleteWorkout = () => {
+  const handleDeleteWorkout = () => {
     Alert.alert('Delete workout', 'Delete this workout and all exercises?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -104,6 +106,7 @@ export default function WorkoutDetailScreen() {
             Alert.alert('Delete failed', error.message);
             return;
           }
+
           router.back();
           Alert.alert('Deleted', 'Workout removed. Go back to templates.');
         },
@@ -111,7 +114,7 @@ export default function WorkoutDetailScreen() {
     ]);
   };
 
-  const saveWorkout = async () => {
+  const handleSaveWorkout = async () => {
     if (!id || !workoutName.trim()) {
       Alert.alert('Error', 'Workout name cannot be empty.');
       return;
@@ -120,7 +123,6 @@ export default function WorkoutDetailScreen() {
     setIsSaving(true);
 
     try {
-      // Update workout name
       const { error: nameError } = await supabase
         .from('workouts')
         .update({ name: workoutName.trim() })
@@ -132,7 +134,7 @@ export default function WorkoutDetailScreen() {
         return;
       }
 
-      // Delete old exercises
+      // Easiest way to keep order consistent is replace the exercise list in one save.
       const { error: deleteError } = await supabase.from('exercises').delete().eq('workout_id', id);
 
       if (deleteError) {
@@ -141,7 +143,6 @@ export default function WorkoutDetailScreen() {
         return;
       }
 
-      // Insert new exercises (without temp IDs)
       if (exercises.length > 0) {
         const exercisesToInsert = exercises.map((ex, idx) => ({
           workout_id: id,
@@ -166,8 +167,8 @@ export default function WorkoutDetailScreen() {
         }
       }
 
-      // Reload to get fresh data from database
-      await load();
+      // Pull back server truth so local temp ids never linger.
+      await loadWorkout();
       Alert.alert('Success', 'Workout saved!');
     } finally {
       setIsSaving(false);
@@ -178,7 +179,7 @@ export default function WorkoutDetailScreen() {
     <Pressable onLongPress={drag} disabled={isActive} style={[styles.exerciseCard, isActive && { opacity: 0.7 }]}> 
       <View style={styles.rowBetween}>
         <Text style={styles.exerciseName}>{item.name}</Text>
-        <Pressable onPress={() => deleteExercise(item.id)}>
+        <Pressable onPress={() => handleDeleteExercise(item.id)}>
           <Text style={styles.deleteText}>Delete</Text>
         </Pressable>
       </View>
@@ -200,7 +201,7 @@ export default function WorkoutDetailScreen() {
           placeholder="Workout name"
           placeholderTextColor={palette.muted}
         />
-        <Pressable style={styles.saveButton} onPress={saveWorkout} disabled={isSaving}>
+        <Pressable style={styles.saveButton} onPress={handleSaveWorkout} disabled={isSaving}>
           <Text style={styles.saveButtonText}>{isSaving ? 'Saving...' : 'Save'}</Text>
         </Pressable>
       </View>
@@ -220,11 +221,11 @@ export default function WorkoutDetailScreen() {
           <Text style={styles.toggleText}>Drop set: {dropSet ? 'Enabled' : 'Disabled'}</Text>
         </Pressable>
 
-        <Pressable style={styles.primaryButton} onPress={addExercise}>
+        <Pressable style={styles.primaryButton} onPress={handleAddExercise}>
           <Text style={styles.primaryText}>Add Exercise</Text>
         </Pressable>
 
-        <Pressable style={styles.deleteWorkoutButton} onPress={deleteWorkout}>
+        <Pressable style={styles.deleteWorkoutButton} onPress={handleDeleteWorkout}>
           <Text style={styles.deleteWorkoutText}>Delete Workout</Text>
         </Pressable>
       </View>
@@ -234,7 +235,7 @@ export default function WorkoutDetailScreen() {
           data={exercises}
           keyExtractor={(item) => item.id}
           renderItem={renderExercise}
-          onDragEnd={({ data }) => saveOrder(data)}
+          onDragEnd={({ data }) => handleSaveOrder(data)}
           contentContainerStyle={{ paddingBottom: 26, gap: 8 }}
         />
       </View>

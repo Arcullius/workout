@@ -6,19 +6,21 @@ import { useAuth } from '@/providers/auth-provider';
 
 export default function SignInScreen() {
   const { signIn, signUp } = useAuth();
-  const [isSignup, setIsSignup] = useState(false);
+  const [isSignupMode, setIsSignupMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const submit = async () => {
+  const handleSubmit = async () => {
     if (!email || !password) {
       Alert.alert('Missing Fields', 'Please enter email and password.');
       return;
     }
 
     setLoading(true);
-    const result = isSignup ? await signUp(email.trim(), password) : await signIn(email.trim(), password);
+    // Trim copy/paste whitespace, especially from mobile autofill.
+    const cleanEmail = email.trim();
+    const result = isSignupMode ? await signUp(cleanEmail, password) : await signIn(cleanEmail, password);
     setLoading(false);
 
     if (result.error) {
@@ -26,7 +28,7 @@ export default function SignInScreen() {
       return;
     }
 
-    if (isSignup) {
+    if (isSignupMode) {
       Alert.alert('Success', 'Account created. Check email if confirmation is required, then sign in.');
     }
   };
@@ -55,12 +57,14 @@ export default function SignInScreen() {
           placeholderTextColor={palette.muted}
         />
 
-        <Pressable style={styles.button} onPress={submit} disabled={loading}>
-          <Text style={styles.buttonText}>{loading ? 'Please wait...' : isSignup ? 'Create Account' : 'Sign In'}</Text>
+        <Pressable style={styles.button} onPress={handleSubmit} disabled={loading}>
+          <Text style={styles.buttonText}>{loading ? 'Please wait...' : isSignupMode ? 'Create Account' : 'Sign In'}</Text>
         </Pressable>
 
-        <Pressable onPress={() => setIsSignup((prev) => !prev)}>
-          <Text style={styles.link}>{isSignup ? 'Already have an account? Sign in' : 'Need an account? Sign up'}</Text>
+        <Pressable onPress={() => setIsSignupMode((prev) => !prev)}>
+          <Text style={styles.link}>
+            {isSignupMode ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+          </Text>
         </Pressable>
       </View>
     </View>

@@ -1,4 +1,3 @@
-// Import hooks and components for navigation, state, and UI
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -9,22 +8,21 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth-provider';
 import { SessionRow, WorkoutRow } from '@/types/db';
 
-// Main component for the Workouts tab
 export default function WorkoutsScreen() {
-  const router = useRouter(); // Used for navigation
-  const { user } = useAuth(); // Get the current user from context
-  const [loading, setLoading] = useState(true); // Loading state for async data
-  const [workouts, setWorkouts] = useState<WorkoutRow[]>([]); // List of user's workouts
-  const [activeSessions, setActiveSessions] = useState<SessionRow[]>([]); // List of active workout sessions
+  const router = useRouter();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [workouts, setWorkouts] = useState<WorkoutRow[]>([]);
+  const [activeSessions, setActiveSessions] = useState<SessionRow[]>([]);
 
-  // Loads workouts and active sessions from Supabase
-  const load = useCallback(async () => {
+  const loadWorkouts = useCallback(async () => {
     if (!user) {
-      // If user is not logged in, skip loading
       return;
     }
+
     setLoading(true);
-    // Fetch workouts and active sessions in parallel
+
+    // We fetch both cards at once so the screen updates together.
     const [{ data: workoutsData, error: workoutsError }, { data: sessionsData, error: sessionsError }] = await Promise.all([
       supabase.from('workouts').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       supabase
@@ -36,7 +34,6 @@ export default function WorkoutsScreen() {
     ]);
 
     if (workoutsError || sessionsError) {
-      // Show an alert if there was an error loading data
       Alert.alert('Error', workoutsError?.message ?? sessionsError?.message ?? 'Could not load workouts.');
       setLoading(false);
       return;
@@ -47,15 +44,13 @@ export default function WorkoutsScreen() {
     setLoading(false);
   }, [user]);
 
-  // Reload data when the screen is focused
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [load]),
+      loadWorkouts();
+    }, [loadWorkouts]),
   );
 
-  // Handler to create a new workout for the user
-  const createWorkout = async () => {
+  const handleCreateWorkout = async () => {
     if (!user) {
       return;
     }
@@ -64,6 +59,7 @@ export default function WorkoutsScreen() {
       .from('workouts')
       .insert({
         user_id: user.id,
+        // Starter defaults so the editor opens with sensible values.
         name: 'New Workout',
         default_rest_seconds: 90,
       })
@@ -75,11 +71,10 @@ export default function WorkoutsScreen() {
       return;
     }
 
-    // Navigate to the workout builder
     router.push(`/workouts/${data.id}`);
   };
 
-  const startSession = async (workout: WorkoutRow) => {
+  const handleStartSession = async (workout: WorkoutRow) => {
     if (!user) {
       return;
     }
@@ -106,11 +101,13 @@ export default function WorkoutsScreen() {
       .order('order_index', { ascending: true });
 
     if (exError) {
+      // Session is still valid even if exercise fetch fails, so let user continue.
       Alert.alert('Warning', exError.message);
       router.push(`/sessions/${sessionData.id}`);
       return;
     }
 
+    // Build starter sets now so the live session opens fully prepared.
     const seedLogs = (exercises ?? []).flatMap((exercise) => {
       const targetSets = Number(exercise.target_sets) || 0;
       return Array.from({ length: targetSets }, (_, idx) => ({
@@ -138,45 +135,49 @@ export default function WorkoutsScreen() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
         <Text style={styles.heading}>Workout Builder</Text>
 
-      <View style={styles.card}>
-          <Pressable style={styles.primaryButton} onPress={createWorkout}>
-          <Text style={styles.primaryText}>Create New Workout</Text>
-        </Pressable>
-      </View>
-
-      <Text style={styles.sectionTitle}>Active Sessions</Text>
-      {activeSessions.length === 0 ? (
-        <View style={styles.workoutCard}>
-          <Text style={styles.workoutMeta}>No active sessions.</Text>
+        <View style={styles.card}>
+          <Pressable style={styles.primaryButton} onPress={handleCreateWorkout}>
+            <Text style={styles.primaryText}>Create New Workout</Text>
+          </Pressable>
         </View>
-      ) : (
-        activeSessions.map((session) => (
-          <View style={styles.workoutCard} key={session.id}>
-            <Text style={styles.workoutTitle}>{session.name}</Text>
-            <Text style={styles.workoutMeta}>Started {new Date(session.started_at).toLocaleString()}</Text>
-            <View style={styles.row}>
-              <Pressable style={styles.primaryButton} onPress={() => router.push(`/sessions/${session.id}`)}>
-                <Text style={styles.primaryText}>Resume Session</Text>
-              </Pressable>
+
+        <Text style={styles.sectionTitle}>Active Sessions</Text>
+        {activeSessions.length === 0 ? (
+          <View style={styles.workoutCard}>
+            <Text style={styles.workoutMeta}>No active sessions.</Text>
+          </View>
+        ) : (
+          activeSessions.map((session) => (
+            <View style={styles.workoutCard} key={session.id}>
+              <Text style={styles.workoutTitle}>{session.name}</Text>
+              <Text style={styles.workoutMeta}>Started {new Date(session.started_at).toLocaleString()}</Text>
+              <View style={styles.row}>
+                <Pressable style={styles.primaryButton} onPress={() => router.push(`/sessions/${session.id}`)}>
+                  <Text style={styles.primaryText}>Resume Session</Text>
+                </Pressable>
+              </View>
             </View>
-          </View>
-        ))
-      )}
+          ))
+        )}
 
-      <Text style={styles.sectionTitle}>Your Templates</Text>
-      {loading ? <ActivityIndicator color={palette.accent} /> : workouts.map((workout) => (
-        <View style={styles.workoutCard} key={workout.id}>
-          <Text style={styles.workoutTitle}>{workout.name}</Text>
-          <View style={styles.row}>
-            <Pressable style={styles.secondaryButton} onPress={() => router.push(`/workouts/${workout.id}`)}>
-              <Text style={styles.secondaryText}>Edit Template</Text>
-            </Pressable>
-            <Pressable style={styles.primaryButton} onPress={() => startSession(workout)}>
-              <Text style={styles.primaryText}>Start Session</Text>
-            </Pressable>
-          </View>
-        </View>
-      ))}
+        <Text style={styles.sectionTitle}>Your Templates</Text>
+        {loading ? (
+          <ActivityIndicator color={palette.accent} />
+        ) : (
+          workouts.map((workout) => (
+            <View style={styles.workoutCard} key={workout.id}>
+              <Text style={styles.workoutTitle}>{workout.name}</Text>
+              <View style={styles.row}>
+                <Pressable style={styles.secondaryButton} onPress={() => router.push(`/workouts/${workout.id}`)}>
+                  <Text style={styles.secondaryText}>Edit Template</Text>
+                </Pressable>
+                <Pressable style={styles.primaryButton} onPress={() => handleStartSession(workout)}>
+                  <Text style={styles.primaryText}>Start Session</Text>
+                </Pressable>
+              </View>
+            </View>
+          ))
+        )}
         {!loading && workouts.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>🏋️</Text>

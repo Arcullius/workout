@@ -1,50 +1,56 @@
-// Import navigation and UI libraries
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Href, Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { HeaderBackButton } from '@react-navigation/elements';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
-import { AuthProvider, useAuth } from '@/providers/auth-provider';
 import { palette } from '@/constants/palette';
+import { AuthProvider, useAuth } from '@/providers/auth-provider';
 
-// RootNavigator handles authentication and navigation logic for the app
+function buildFallbackBackHandler(router: ReturnType<typeof useRouter>, fallbackRoute: Href) {
+  return () => {
+    // Deep links can land here with no back stack, so we keep a safe fallback route.
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace(fallbackRoute);
+  };
+}
+
 function RootNavigator() {
-  const router = useRouter(); // Used for navigation
-  const segments = useSegments(); // Current navigation segments
-  const { session, loading } = useAuth(); // Auth state
+  const router = useRouter();
+  const segments = useSegments();
+  const { session, loading } = useAuth();
 
-  // Redirect users based on authentication state and route
   useEffect(() => {
     if (loading) {
-      // Wait for auth state to resolve
+      // Wait until Supabase restores the existing session.
       return;
     }
 
     const isAuthRoute = segments[0] === '(auth)';
 
     if (!session && !isAuthRoute) {
-      // If not logged in, redirect to sign-in
       router.replace('/(auth)/sign-in');
       return;
     }
 
     if (session && isAuthRoute) {
-      // If logged in and on auth route, redirect to main tabs
       router.replace('/(tabs)');
     }
   }, [loading, router, segments, session]);
 
-  // Define the navigation stack for the app
+  const handleBackToWorkouts = buildFallbackBackHandler(router, '/(tabs)/workouts');
+  const handleBackToHistory = buildFallbackBackHandler(router, '/(tabs)/history');
+
   return (
     <>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.navy } }}>
-        {/* Auth screens */}
         <Stack.Screen name="(auth)" />
-        {/* Main tab screens */}
         <Stack.Screen name="(tabs)" />
-        {/* Workout builder screen with custom back button logic */}
         <Stack.Screen
           name="workouts/[id]"
           options={{
@@ -53,35 +59,17 @@ function RootNavigator() {
             headerLeft: (props) => (
               <HeaderBackButton
                 {...props}
-                onPress={() => {
-                  if (router.canGoBack()) {
-                    router.back();
-                    return;
-                  }
-                  router.replace('/(tabs)/workouts');
-                }}
+                onPress={handleBackToWorkouts}
               />
             ),
           }}
         />
-        {/* Session details screen */}
         <Stack.Screen
           name="sessions/[id]"
           options={{
             headerShown: true,
             title: 'Live Session',
-            headerLeft: (props) => (
-              <HeaderBackButton
-                {...props}
-                onPress={() => {
-                  if (router.canGoBack()) {
-                    router.back();
-                    return;
-                  }
-                  router.replace('/(tabs)/workouts');
-                }}
-              />
-            ),
+            headerLeft: (props) => <HeaderBackButton {...props} onPress={handleBackToWorkouts} />,
           }}
         />
         <Stack.Screen
@@ -89,18 +77,7 @@ function RootNavigator() {
           options={{
             headerShown: true,
             title: 'Session Details',
-            headerLeft: (props) => (
-              <HeaderBackButton
-                {...props}
-                onPress={() => {
-                  if (router.canGoBack()) {
-                    router.back();
-                    return;
-                  }
-                  router.replace('/(tabs)/history');
-                }}
-              />
-            ),
+            headerLeft: (props) => <HeaderBackButton {...props} onPress={handleBackToHistory} />,
           }}
         />
       </Stack>

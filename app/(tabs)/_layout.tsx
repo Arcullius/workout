@@ -5,6 +5,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { HapticTab } from '@/components/haptic-tab';
 import { palette } from '@/constants/palette';
 
+function buildTabIcon(iconName: React.ComponentProps<typeof Ionicons>['name']) {
+  // Tiny helper so the screen config stays compact.
+  return ({ color, size }: { color: string; size: number }) => (
+    <Ionicons name={iconName} size={size} color={color} />
+  );
+}
+
 export default function TabLayout() {
   return (
     <Tabs
@@ -24,28 +31,28 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
+          tabBarIcon: buildTabIcon('home'),
         }}
       />
       <Tabs.Screen
         name="workouts"
         options={{
           title: 'Workouts',
-          tabBarIcon: ({ color, size }) => <Ionicons name="barbell" size={size} color={color} />,
+          tabBarIcon: buildTabIcon('barbell'),
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
           title: 'History',
-          tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" size={size} color={color} />,
+          tabBarIcon: buildTabIcon('stats-chart'),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
+          tabBarIcon: buildTabIcon('person'),
         }}
       />
     </Tabs>
