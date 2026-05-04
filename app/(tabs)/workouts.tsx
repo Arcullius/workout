@@ -50,28 +50,8 @@ export default function WorkoutsScreen() {
     }, [loadWorkouts]),
   );
 
-  const handleCreateWorkout = async () => {
-    if (!user) {
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('workouts')
-      .insert({
-        user_id: user.id,
-        // Starter defaults so the editor opens with sensible values.
-        name: 'New Workout',
-        default_rest_seconds: 90,
-      })
-      .select('id')
-      .single();
-
-    if (error || !data) {
-      Alert.alert('Create failed', error?.message ?? 'Could not create workout.');
-      return;
-    }
-
-    router.push(`/workouts/${data.id}`);
+  const handleCreateWorkout = () => {
+    router.push('/workouts/new');
   };
 
   const handleStartSession = async (workout: WorkoutRow) => {
