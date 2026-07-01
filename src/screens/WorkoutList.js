@@ -29,7 +29,6 @@ export default function WorkoutList({ navigation, workouts, onAddWorkout, onDele
           value={workoutName}
           onChangeText={setWorkoutName}
           onSubmitEditing={handleAddWorkout}
-          returnKeyType="done"
         />
         <Pressable style={styles.addButton} onPress={handleAddWorkout}>
           <Text style={styles.addButtonText}>Add</Text>

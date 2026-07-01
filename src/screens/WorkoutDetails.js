@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 
@@ -86,7 +87,6 @@ export default function WorkoutDetails({
   const [isSelectorCollapsed, setIsSelectorCollapsed] = useState(false);
   const [draggingOption, setDraggingOption] = useState(null);
   const [dropZoneActive, setDropZoneActive] = useState(false);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const draggingOptionRef = useRef(null);
   const dropZoneActiveRef = useRef(false);
@@ -166,20 +166,6 @@ export default function WorkoutDetails({
 
     return () => clearTimeout(timer);
   }, [exercises.length, filteredExerciseOptions.length]);
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardDidShow', () => {
-      setIsKeyboardVisible(true);
-    });
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-      setIsKeyboardVisible(false);
-    });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
 
   const toLocalIndicatorPosition = (point) => ({
     x:
@@ -294,13 +280,14 @@ export default function WorkoutDetails({
   };
 
   return (
-    <SafeAreaView
-      ref={containerRef}
-      style={styles.container}
-      onLayout={measureWorkoutListZone}
-      {...panResponder.panHandlers}
-    >
-      <Text style={styles.title}>{title}</Text>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <SafeAreaView
+        ref={containerRef}
+        style={styles.container}
+        onLayout={measureWorkoutListZone}
+        {...panResponder.panHandlers}
+      >
+        <Text style={styles.title}>{title}</Text>
 
       {!workout ? (
         <Text style={styles.emptyText}>This workout no longer exists.</Text>
@@ -436,14 +423,6 @@ export default function WorkoutDetails({
               dropZoneActive && styles.workoutListZoneActive,
             ]}
           >
-            {isKeyboardVisible ? (
-              <Pressable
-                style={styles.keyboardDoneButton}
-                onPress={() => Keyboard.dismiss()}
-              >
-                <Text style={styles.keyboardDoneButtonText}>Done</Text>
-              </Pressable>
-            ) : null}
             <DragList
               data={exercises}
               keyExtractor={(item) => item.id}
@@ -521,9 +500,6 @@ export default function WorkoutDetails({
                         style={styles.metricInput}
                         placeholder="sets"
                         keyboardType="numeric"
-                        returnKeyType="done"
-                        blurOnSubmit
-                        onSubmitEditing={() => Keyboard.dismiss()}
                         value={linkedExercise?.sets ?? ''}
                         onChangeText={(value) => {
                           if (!item.exerciseId) {
@@ -536,9 +512,6 @@ export default function WorkoutDetails({
                         style={styles.metricInput}
                         placeholder="reps"
                         keyboardType="numeric"
-                        returnKeyType="done"
-                        blurOnSubmit
-                        onSubmitEditing={() => Keyboard.dismiss()}
                         value={linkedExercise?.reps ?? ''}
                         onChangeText={(value) => {
                           if (!item.exerciseId) {
@@ -551,9 +524,6 @@ export default function WorkoutDetails({
                         style={styles.metricInput}
                         placeholder="weight (lb)"
                         keyboardType="numeric"
-                        returnKeyType="done"
-                        blurOnSubmit
-                        onSubmitEditing={() => Keyboard.dismiss()}
                         value={linkedExercise?.weightLb ?? ''}
                         onChangeText={(value) => {
                           if (!item.exerciseId) {
@@ -574,41 +544,42 @@ export default function WorkoutDetails({
         </>
       )}
 
-      {draggingOption ? (
-        <Animated.View
-          pointerEvents="none"
-          onLayout={(event) => {
-            const { width, height } = event.nativeEvent.layout;
-            dragIndicatorSizeRef.current = { width, height };
-          }}
-          style={[
-            styles.dragIndicator,
-            {
-              transform: [
-                { translateX: dragIndicatorPosition.x },
-                { translateY: dragIndicatorPosition.y },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.optionRowDragIndicator}>
-            <Text style={styles.optionName}>{draggingOption.name}</Text>
-            <View
-              style={[
-                styles.categoryPill,
-                {
-                  backgroundColor: getCategoryDisplay(draggingOption.category).color,
-                },
-              ]}
-            >
-              <Text style={styles.categoryPillText}>
-                {getCategoryDisplay(draggingOption.category).label}
-              </Text>
+        {draggingOption ? (
+          <Animated.View
+            pointerEvents="none"
+            onLayout={(event) => {
+              const { width, height } = event.nativeEvent.layout;
+              dragIndicatorSizeRef.current = { width, height };
+            }}
+            style={[
+              styles.dragIndicator,
+              {
+                transform: [
+                  { translateX: dragIndicatorPosition.x },
+                  { translateY: dragIndicatorPosition.y },
+                ],
+              },
+            ]}
+          >
+            <View style={styles.optionRowDragIndicator}>
+              <Text style={styles.optionName}>{draggingOption.name}</Text>
+              <View
+                style={[
+                  styles.categoryPill,
+                  {
+                    backgroundColor: getCategoryDisplay(draggingOption.category).color,
+                  },
+                ]}
+              >
+                <Text style={styles.categoryPillText}>
+                  {getCategoryDisplay(draggingOption.category).label}
+                </Text>
+              </View>
             </View>
-          </View>
-        </Animated.View>
-      ) : null}
-    </SafeAreaView>
+          </Animated.View>
+        ) : null}
+      </SafeAreaView>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -766,19 +737,6 @@ const styles = StyleSheet.create({
   workoutListZoneActive: {
     borderColor: '#10b981',
     backgroundColor: '#ecfdf5',
-  },
-  keyboardDoneButton: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#111827',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginBottom: 8,
-  },
-  keyboardDoneButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 12,
   },
   listContent: {
     paddingBottom: 24,

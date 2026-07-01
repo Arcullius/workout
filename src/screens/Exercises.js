@@ -80,7 +80,6 @@ export default function Exercises({
           value={exerciseName}
           onChangeText={setExerciseName}
           onSubmitEditing={handleAddExercise}
-          returnKeyType="done"
         />
         <Pressable style={styles.addButton} onPress={handleAddExercise}>
           <Text style={styles.addButtonText}>Add</Text>
