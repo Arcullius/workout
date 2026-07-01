@@ -101,9 +101,6 @@ export default function App() {
   const [workouts, setWorkouts] = useState([]);
   const [weightExercises, setWeightExercises] = useState([]);
 
-  const createId = () =>
-    `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
   const handleAddWorkout = (name) => {
     const trimmedName = name.trim();
     if (!trimmedName) {
@@ -111,7 +108,7 @@ export default function App() {
     }
 
     setWorkouts((currentWorkouts) => [
-      { id: createId(), name: trimmedName, exercises: [] },
+      { id: Date.now().toString(), name: trimmedName, exercises: [] },
       ...currentWorkouts,
     ]);
   };
@@ -122,7 +119,7 @@ export default function App() {
     );
   };
 
-  const handleAddExerciseToWorkout = (workoutId, exerciseId, insertAtIndex) => {
+  const handleAddExerciseToWorkout = (workoutId, exerciseId) => {
     if (!exerciseId) {
       return;
     }
@@ -140,30 +137,17 @@ export default function App() {
           return workout;
         }
 
-        const nextExercise = {
-          id: createId(),
-          exerciseId: selectedExercise.id,
-          name: selectedExercise.name,
-          category: selectedExercise.category ?? '',
-        };
-
-        const safeInsertIndex = Number.isInteger(insertAtIndex)
-          ? Math.max(0, Math.min(insertAtIndex, workout.exercises.length))
-          : null;
-
-        if (safeInsertIndex === null) {
-          return {
-            ...workout,
-            exercises: [nextExercise, ...workout.exercises],
-          };
-        }
-
-        const reorderedExercises = [...workout.exercises];
-        reorderedExercises.splice(safeInsertIndex, 0, nextExercise);
-
         return {
           ...workout,
-          exercises: reorderedExercises,
+          exercises: [
+            {
+              id: Date.now().toString(),
+              exerciseId: selectedExercise.id,
+              name: selectedExercise.name,
+              category: selectedExercise.category ?? '',
+            },
+            ...workout.exercises,
+          ],
         };
       })
     );
@@ -207,7 +191,7 @@ export default function App() {
       return '';
     }
 
-    const newId = createId();
+    const newId = Date.now().toString();
     setWeightExercises((currentExercises) => [
       {
         id: newId,

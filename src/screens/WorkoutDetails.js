@@ -3,6 +3,7 @@ import DragList from 'react-native-draglist';
 import {
   Animated,
   FlatList,
+  Keyboard,
   PanResponder,
   Pressable,
   SafeAreaView,
@@ -82,11 +83,14 @@ export default function WorkoutDetails({
   const [selectedExerciseId, setSelectedExerciseId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [isSelectorCollapsed, setIsSelectorCollapsed] = useState(false);
   const [draggingOption, setDraggingOption] = useState(null);
   const [dropZoneActive, setDropZoneActive] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const draggingOptionRef = useRef(null);
   const dropZoneActiveRef = useRef(false);
+  const suppressTapAfterLongPressRef = useRef(false);
   const dragIndicatorPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const dragIndicatorSizeRef = useRef({ width: 260, height: 40 });
 
@@ -95,8 +99,6 @@ export default function WorkoutDetails({
   const containerBoundsRef = useRef({ x: 0, y: 0 });
   const workoutListZoneRef = useRef(null);
   const workoutListBoundsRef = useRef(null);
-  const dropTargetZoneRef = useRef(null);
-  const dropTargetBoundsRef = useRef(null);
 
   const workout = workouts.find((item) => item.id === workoutId);
   const exercises = workout?.exercises ?? [];
@@ -141,12 +143,6 @@ export default function WorkoutDetails({
     workoutListZoneRef.current.measureInWindow((x, y, width, height) => {
       workoutListBoundsRef.current = { x, y, width, height };
     });
-
-    if (dropTargetZoneRef.current) {
-      dropTargetZoneRef.current.measureInWindow((x, y, width, height) => {
-        dropTargetBoundsRef.current = { x, y, width, height };
-      });
-    }
   };
 
   const isPointInsideDropTarget = (point, zone) => {
@@ -171,6 +167,20 @@ export default function WorkoutDetails({
     return () => clearTimeout(timer);
   }, [exercises.length, filteredExerciseOptions.length]);
 
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => {
+      setIsKeyboardVisible(true);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setIsKeyboardVisible(false);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const toLocalIndicatorPosition = (point) => ({
     x:
       point.x -
@@ -189,16 +199,12 @@ export default function WorkoutDetails({
     }
 
     const releasePoint = lastDragPointRef.current;
-    const droppedInTargetRow = isPointInsideDropTarget(
-      releasePoint,
-      dropTargetBoundsRef.current
-    );
     const droppedInWorkoutList = isPointInsideDropTarget(
       releasePoint,
       workoutListBoundsRef.current
     );
 
-    if (droppedInTargetRow || droppedInWorkoutList || dropZoneActiveRef.current) {
+    if (droppedInWorkoutList || dropZoneActiveRef.current) {
       onAddExerciseToWorkout(workoutId, draggedExercise.id);
     }
 
@@ -218,7 +224,7 @@ export default function WorkoutDetails({
     const localPosition = toLocalIndicatorPosition(startPoint);
     dragIndicatorPosition.setValue(localPosition);
 
-    const isActive = isPointInsideDropTarget(startPoint, dropTargetBoundsRef.current);
+    const isActive = isPointInsideDropTarget(startPoint, workoutListBoundsRef.current);
     dropZoneActiveRef.current = isActive;
     setDropZoneActive(isActive);
   };
@@ -243,7 +249,7 @@ export default function WorkoutDetails({
         lastDragPointRef.current = point;
         dragIndicatorPosition.setValue(toLocalIndicatorPosition(point));
 
-        const isActive = isPointInsideDropTarget(point, dropTargetBoundsRef.current);
+        const isActive = isPointInsideDropTarget(point, workoutListBoundsRef.current);
         if (isActive !== dropZoneActiveRef.current) {
           dropZoneActiveRef.current = isActive;
           setDropZoneActive(isActive);
@@ -267,6 +273,26 @@ export default function WorkoutDetails({
     setSelectedExerciseId('');
   };
 
+  const handleItemLongPress = (onDragStart) => {
+    suppressTapAfterLongPressRef.current = true;
+    onDragStart();
+  };
+
+  const handleItemPressOut = (onDragEnd) => {
+    if (suppressTapAfterLongPressRef.current) {
+      onDragEnd();
+    }
+  };
+
+  const shouldSkipTap = () => {
+    if (!suppressTapAfterLongPressRef.current) {
+      return false;
+    }
+
+    suppressTapAfterLongPressRef.current = false;
+    return true;
+  };
+
   return (
     <SafeAreaView
       ref={containerRef}
@@ -281,106 +307,118 @@ export default function WorkoutDetails({
       ) : (
         <>
           <View style={styles.selectorCard}>
-            <Text style={styles.selectorTitle}>Add Exercise To Workout</Text>
-
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search exercises"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              returnKeyType="search"
-            />
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoryFiltersRow}
-            >
-              {CATEGORY_FILTERS.map((categoryFilter) => {
-                const isActive = selectedCategory === categoryFilter.value;
-                return (
-                  <Pressable
-                    key={categoryFilter.value}
-                    style={[
-                      styles.categoryFilterChip,
-                      isActive && styles.categoryFilterChipActive,
-                    ]}
-                    onPress={() => setSelectedCategory(categoryFilter.value)}
-                  >
-                    <Text
-                      style={[
-                        styles.categoryFilterText,
-                        isActive && styles.categoryFilterTextActive,
-                      ]}
-                    >
-                      {categoryFilter.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            <View style={styles.optionsList}>
-              <FlatList
-                data={filteredExerciseOptions}
-                keyExtractor={(item) => item.id}
-                keyboardShouldPersistTaps="handled"
-                renderItem={({ item }) => {
-                  const categoryMeta = getCategoryDisplay(item.category);
-                  const isSelected = selectedExerciseId === item.id;
-                  const isDraggingThisOption = draggingOption?.id === item.id;
-
-                  return (
-                    <Pressable
-                      style={[
-                        styles.optionRow,
-                        isSelected && styles.optionRowSelected,
-                        isDraggingThisOption && styles.optionRowDraggingSource,
-                      ]}
-                      delayLongPress={180}
-                      onPress={() => setSelectedExerciseId(item.id)}
-                      onLongPress={(event) => {
-                        const startPoint = {
-                          x: event.nativeEvent.pageX,
-                          y: event.nativeEvent.pageY,
-                        };
-
-                        startOptionDrag(item, startPoint);
-                      }}
-                    >
-                      <Text style={styles.optionName}>{item.name}</Text>
-                      <View
-                        style={[
-                          styles.categoryPill,
-                          { backgroundColor: categoryMeta.color },
-                        ]}
-                      >
-                        <Text style={styles.categoryPillText}>{categoryMeta.label}</Text>
-                      </View>
-                    </Pressable>
-                  );
-                }}
-                ListEmptyComponent={
-                  <Text style={styles.emptySelectorText}>No matching exercises.</Text>
-                }
-              />
-            </View>
-
-            <Text style={styles.dragHintText}>
-              Tip: Long press an option and drag it into the workout list.
-            </Text>
-
-            <Text style={styles.selectedLabel}>
-              Selected: {selectedExercise ? selectedExercise.name : 'None'}
-            </Text>
-
             <Pressable
-              style={[styles.addButton, !selectedExerciseId && styles.addButtonDisabled]}
-              onPress={handleAddExercise}
-              disabled={!selectedExerciseId}
+              style={styles.selectorHeader}
+              onPress={() => setIsSelectorCollapsed((current) => !current)}
             >
-              <Text style={styles.addButtonText}>Add</Text>
+              <Text style={styles.selectorTitle}>Add Exercise To Workout</Text>
+              <Text style={styles.selectorToggleIcon}>
+                {isSelectorCollapsed ? '▼' : '▲'}
+              </Text>
             </Pressable>
+
+            {!isSelectorCollapsed ? (
+              <>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search exercises"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  returnKeyType="search"
+                />
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.categoryFiltersRow}
+                >
+                  {CATEGORY_FILTERS.map((categoryFilter) => {
+                    const isActive = selectedCategory === categoryFilter.value;
+                    return (
+                      <Pressable
+                        key={categoryFilter.value}
+                        style={[
+                          styles.categoryFilterChip,
+                          isActive && styles.categoryFilterChipActive,
+                        ]}
+                        onPress={() => setSelectedCategory(categoryFilter.value)}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryFilterText,
+                            isActive && styles.categoryFilterTextActive,
+                          ]}
+                        >
+                          {categoryFilter.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+
+                <View style={styles.optionsList}>
+                  <FlatList
+                    data={filteredExerciseOptions}
+                    keyExtractor={(item) => item.id}
+                    keyboardShouldPersistTaps="handled"
+                    renderItem={({ item }) => {
+                      const categoryMeta = getCategoryDisplay(item.category);
+                      const isSelected = selectedExerciseId === item.id;
+                      const isDraggingThisOption = draggingOption?.id === item.id;
+
+                      return (
+                        <Pressable
+                          style={[
+                            styles.optionRow,
+                            isSelected && styles.optionRowSelected,
+                            isDraggingThisOption && styles.optionRowDraggingSource,
+                          ]}
+                          delayLongPress={180}
+                          onPress={() => setSelectedExerciseId(item.id)}
+                          onLongPress={(event) => {
+                            const startPoint = {
+                              x: event.nativeEvent.pageX,
+                              y: event.nativeEvent.pageY,
+                            };
+
+                            startOptionDrag(item, startPoint);
+                          }}
+                        >
+                          <Text style={styles.optionName}>{item.name}</Text>
+                          <View
+                            style={[
+                              styles.categoryPill,
+                              { backgroundColor: categoryMeta.color },
+                            ]}
+                          >
+                            <Text style={styles.categoryPillText}>{categoryMeta.label}</Text>
+                          </View>
+                        </Pressable>
+                      );
+                    }}
+                    ListEmptyComponent={
+                      <Text style={styles.emptySelectorText}>No matching exercises.</Text>
+                    }
+                  />
+                </View>
+
+                <Text style={styles.dragHintText}>
+                  Tip: Long press an option and drag it into the workout list.
+                </Text>
+
+                <Text style={styles.selectedLabel}>
+                  Selected: {selectedExercise ? selectedExercise.name : 'None'}
+                </Text>
+
+                <Pressable
+                  style={[styles.addButton, !selectedExerciseId && styles.addButtonDisabled]}
+                  onPress={handleAddExercise}
+                  disabled={!selectedExerciseId}
+                >
+                  <Text style={styles.addButtonText}>Add</Text>
+                </Pressable>
+              </>
+            ) : null}
           </View>
 
           {availableExercises.length === 0 ? (
@@ -398,24 +436,14 @@ export default function WorkoutDetails({
               dropZoneActive && styles.workoutListZoneActive,
             ]}
           >
-            <View
-              ref={dropTargetZoneRef}
-              collapsable={false}
-              onLayout={measureWorkoutListZone}
-              style={[
-                styles.dropTargetRow,
-                dropZoneActive && styles.dropTargetRowActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.dropTargetText,
-                  dropZoneActive && styles.dropTargetTextActive,
-                ]}
+            {isKeyboardVisible ? (
+              <Pressable
+                style={styles.keyboardDoneButton}
+                onPress={() => Keyboard.dismiss()}
               >
-                Drop here to add exercise
-              </Text>
-            </View>
+                <Text style={styles.keyboardDoneButtonText}>Done</Text>
+              </Pressable>
+            ) : null}
             <DragList
               data={exercises}
               keyExtractor={(item) => item.id}
@@ -435,11 +463,23 @@ export default function WorkoutDetails({
                 );
 
                 return (
-                  <View style={[styles.itemRow, isActive && styles.itemRowActive]}>
+                  <Pressable
+                    style={[styles.itemRow, isActive && styles.itemRowActive]}
+                    delayLongPress={180}
+                    onLongPress={() => handleItemLongPress(onDragStart)}
+                    onPressOut={() => handleItemPressOut(onDragEnd)}
+                  >
                     <View style={styles.itemTopRow}>
                       <Pressable
                         style={styles.itemInfoRow}
+                        delayLongPress={180}
+                        onLongPress={() => handleItemLongPress(onDragStart)}
+                        onPressOut={() => handleItemPressOut(onDragEnd)}
                         onPress={() => {
+                          if (shouldSkipTap()) {
+                            return;
+                          }
+
                           if (!item.exerciseId) {
                             return;
                           }
@@ -461,15 +501,17 @@ export default function WorkoutDetails({
                         </View>
                       </Pressable>
                       <Pressable
-                        style={styles.reorderHandle}
-                        onPressIn={onDragStart}
-                        onPressOut={onDragEnd}
-                      >
-                        <Text style={styles.reorderHandleText}>Drag</Text>
-                      </Pressable>
-                      <Pressable
                         style={styles.deleteButton}
-                        onPress={() => onDeleteExercise(workoutId, item.id)}
+                        delayLongPress={180}
+                        onLongPress={() => handleItemLongPress(onDragStart)}
+                        onPressOut={() => handleItemPressOut(onDragEnd)}
+                        onPress={() => {
+                          if (shouldSkipTap()) {
+                            return;
+                          }
+
+                          onDeleteExercise(workoutId, item.id);
+                        }}
                       >
                         <Text style={styles.deleteButtonText}>Delete</Text>
                       </Pressable>
@@ -479,6 +521,9 @@ export default function WorkoutDetails({
                         style={styles.metricInput}
                         placeholder="sets"
                         keyboardType="numeric"
+                        returnKeyType="done"
+                        blurOnSubmit
+                        onSubmitEditing={() => Keyboard.dismiss()}
                         value={linkedExercise?.sets ?? ''}
                         onChangeText={(value) => {
                           if (!item.exerciseId) {
@@ -491,6 +536,9 @@ export default function WorkoutDetails({
                         style={styles.metricInput}
                         placeholder="reps"
                         keyboardType="numeric"
+                        returnKeyType="done"
+                        blurOnSubmit
+                        onSubmitEditing={() => Keyboard.dismiss()}
                         value={linkedExercise?.reps ?? ''}
                         onChangeText={(value) => {
                           if (!item.exerciseId) {
@@ -503,6 +551,9 @@ export default function WorkoutDetails({
                         style={styles.metricInput}
                         placeholder="weight (lb)"
                         keyboardType="numeric"
+                        returnKeyType="done"
+                        blurOnSubmit
+                        onSubmitEditing={() => Keyboard.dismiss()}
                         value={linkedExercise?.weightLb ?? ''}
                         onChangeText={(value) => {
                           if (!item.exerciseId) {
@@ -512,7 +563,7 @@ export default function WorkoutDetails({
                         }}
                       />
                     </View>
-                  </View>
+                  </Pressable>
                 );
               }}
               ListEmptyComponent={
@@ -586,7 +637,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#111827',
+  },
+  selectorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 10,
+  },
+  selectorToggleIcon: {
+    fontSize: 14,
+    color: '#4b5563',
+    fontWeight: '700',
   },
   searchInput: {
     backgroundColor: '#ffffff',
@@ -706,28 +767,18 @@ const styles = StyleSheet.create({
     borderColor: '#10b981',
     backgroundColor: '#ecfdf5',
   },
-  dropTargetRow: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#9ca3af',
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  keyboardDoneButton: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#111827',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     marginBottom: 8,
-    backgroundColor: '#f9fafb',
   },
-  dropTargetRowActive: {
-    borderColor: '#10b981',
-    backgroundColor: '#dcfce7',
-  },
-  dropTargetText: {
-    color: '#6b7280',
+  keyboardDoneButtonText: {
+    color: '#ffffff',
     fontWeight: '600',
-    fontSize: 13,
-  },
-  dropTargetTextActive: {
-    color: '#065f46',
+    fontSize: 12,
   },
   listContent: {
     paddingBottom: 24,
@@ -748,7 +799,7 @@ const styles = StyleSheet.create({
   itemTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   itemInfoRow: {
     flex: 1,
@@ -785,18 +836,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
-  },
-  reorderHandle: {
-    marginLeft: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#111827',
-  },
-  reorderHandleText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    fontSize: 12,
   },
   deleteButton: {
     marginLeft: 8,
