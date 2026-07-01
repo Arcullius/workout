@@ -11,14 +11,44 @@ const Tab = createBottomTabNavigator();
 const WorkoutStack = createNativeStackNavigator();
 const WeightsStack = createNativeStackNavigator();
 
+function normalizeWorkoutSupersets(exercises) {
+  const countsBySupersetId = exercises.reduce((counts, exercise) => {
+    if (!exercise.supersetId) {
+      return counts;
+    }
+
+    return {
+      ...counts,
+      [exercise.supersetId]: (counts[exercise.supersetId] ?? 0) + 1,
+    };
+  }, {});
+
+  return exercises.map((exercise) => {
+    if (!exercise.supersetId) {
+      return exercise;
+    }
+
+    if ((countsBySupersetId[exercise.supersetId] ?? 0) >= 2) {
+      return exercise;
+    }
+
+    return {
+      ...exercise,
+      supersetId: null,
+    };
+  });
+}
+
 function WorkoutStackNavigator({
   workouts,
   weightExercises,
   onAddWorkout,
   onDeleteWorkout,
   onAddExerciseToWorkout,
+  onCreateExerciseSuperset,
   onDeleteExercise,
   onReorderWorkoutExercises,
+  onSetExerciseSuperset,
   onUpdateWeightExercise,
 }) {
   return (
@@ -46,8 +76,10 @@ function WorkoutStackNavigator({
             workouts={workouts}
             availableExercises={weightExercises}
             onAddExerciseToWorkout={onAddExerciseToWorkout}
+            onCreateExerciseSuperset={onCreateExerciseSuperset}
             onDeleteExercise={onDeleteExercise}
             onReorderWorkoutExercises={onReorderWorkoutExercises}
+            onSetExerciseSuperset={onSetExerciseSuperset}
             onUpdateWeightExercise={onUpdateWeightExercise}
           />
         )}
@@ -145,6 +177,7 @@ export default function App() {
               exerciseId: selectedExercise.id,
               name: selectedExercise.name,
               category: selectedExercise.category ?? '',
+              supersetId: null,
             },
             ...workout.exercises,
           ],
@@ -160,10 +193,72 @@ export default function App() {
           return workout;
         }
 
+        const nextExercises = workout.exercises.filter(
+          (exercise) => exercise.id !== exerciseId
+        );
+
         return {
           ...workout,
-          exercises: workout.exercises.filter(
-            (exercise) => exercise.id !== exerciseId
+          exercises: normalizeWorkoutSupersets(nextExercises),
+        };
+      })
+    );
+  };
+
+  const handleCreateExerciseSuperset = (
+    workoutId,
+    firstWorkoutExerciseId,
+    secondWorkoutExerciseId,
+    supersetId
+  ) => {
+    setWorkouts((currentWorkouts) =>
+      currentWorkouts.map((workout) => {
+        if (workout.id !== workoutId) {
+          return workout;
+        }
+
+        return {
+          ...workout,
+          exercises: normalizeWorkoutSupersets(
+            workout.exercises.map((exercise) => {
+              if (
+                exercise.id !== firstWorkoutExerciseId &&
+                exercise.id !== secondWorkoutExerciseId
+              ) {
+                return exercise;
+              }
+
+              return {
+                ...exercise,
+                supersetId,
+              };
+            })
+          ),
+        };
+      })
+    );
+  };
+
+  const handleSetExerciseSuperset = (workoutId, workoutExerciseId, supersetId) => {
+    setWorkouts((currentWorkouts) =>
+      currentWorkouts.map((workout) => {
+        if (workout.id !== workoutId) {
+          return workout;
+        }
+
+        return {
+          ...workout,
+          exercises: normalizeWorkoutSupersets(
+            workout.exercises.map((exercise) => {
+              if (exercise.id !== workoutExerciseId) {
+                return exercise;
+              }
+
+              return {
+                ...exercise,
+                supersetId,
+              };
+            })
           ),
         };
       })
@@ -254,8 +349,10 @@ export default function App() {
               onAddWorkout={handleAddWorkout}
               onDeleteWorkout={handleDeleteWorkout}
               onAddExerciseToWorkout={handleAddExerciseToWorkout}
+              onCreateExerciseSuperset={handleCreateExerciseSuperset}
               onDeleteExercise={handleDeleteExercise}
               onReorderWorkoutExercises={handleReorderWorkoutExercises}
+              onSetExerciseSuperset={handleSetExerciseSuperset}
               onUpdateWeightExercise={handleUpdateWeightExercise}
             />
           )}

@@ -43,6 +43,15 @@ const CATEGORY_FILTERS = [
   { value: 'legs', label: 'Legs' },
 ];
 
+const SUPERSET_COLORS = [
+  '#f97316',
+  '#0ea5e9',
+  '#22c55e',
+  '#8b5cf6',
+  '#ef4444',
+  '#14b8a6',
+];
+
 function normalizeCategory(category) {
   if (!category) {
     return '';
@@ -76,8 +85,10 @@ export default function WorkoutDetails({
   workouts,
   availableExercises,
   onAddExerciseToWorkout,
+  onCreateExerciseSuperset,
   onDeleteExercise,
   onReorderWorkoutExercises,
+  onSetExerciseSuperset,
   onUpdateWeightExercise,
 }) {
   const { workoutId, title } = route.params;
@@ -87,6 +98,8 @@ export default function WorkoutDetails({
   const [isSelectorCollapsed, setIsSelectorCollapsed] = useState(false);
   const [draggingOption, setDraggingOption] = useState(null);
   const [dropZoneActive, setDropZoneActive] = useState(false);
+  const [isSupersetSelectionMode, setIsSupersetSelectionMode] = useState(false);
+  const [selectedSupersetExerciseIds, setSelectedSupersetExerciseIds] = useState([]);
 
   const draggingOptionRef = useRef(null);
   const dropZoneActiveRef = useRef(false);
@@ -166,6 +179,14 @@ export default function WorkoutDetails({
 
     return () => clearTimeout(timer);
   }, [exercises.length, filteredExerciseOptions.length]);
+
+  useEffect(() => {
+    setSelectedSupersetExerciseIds((currentIds) =>
+      currentIds.filter((exerciseId) =>
+        exercises.some((exercise) => exercise.id === exerciseId)
+      )
+    );
+  }, [exercises]);
 
   const toLocalIndicatorPosition = (point) => ({
     x:
@@ -277,6 +298,71 @@ export default function WorkoutDetails({
 
     suppressTapAfterLongPressRef.current = false;
     return true;
+  };
+
+  const supersetIds = Array.from(
+    new Set(exercises.map((exercise) => exercise.supersetId).filter(Boolean))
+  );
+
+  const supersetMetaById = supersetIds.reduce((meta, supersetId, index) => {
+    meta[supersetId] = {
+      label: `S${index + 1}`,
+      color: SUPERSET_COLORS[index % SUPERSET_COLORS.length],
+    };
+    return meta;
+  }, {});
+
+  const handleRemoveFromSuperset = (item) => {
+    onSetExerciseSuperset(workoutId, item.id, null);
+  };
+
+  const selectedSupersetExercises = exercises.filter((exercise) =>
+    selectedSupersetExerciseIds.includes(exercise.id)
+  );
+
+  const selectedExistingSupersetIds = Array.from(
+    new Set(selectedSupersetExercises.map((exercise) => exercise.supersetId).filter(Boolean))
+  );
+
+  const selectedExistingSupersetId =
+    selectedExistingSupersetIds.length === 1 ? selectedExistingSupersetIds[0] : null;
+
+  const isSupersetSelectionInvalid = selectedExistingSupersetIds.length > 1;
+
+  const toggleSupersetSelection = (item) => {
+    setSelectedSupersetExerciseIds((currentIds) => {
+      if (currentIds.includes(item.id)) {
+        return currentIds.filter((exerciseId) => exerciseId !== item.id);
+      }
+
+      return [...currentIds, item.id];
+    });
+  };
+
+  const clearSupersetSelection = () => {
+    setIsSupersetSelectionMode(false);
+    setSelectedSupersetExerciseIds([]);
+  };
+
+  const handleApplySupersetSelection = () => {
+    if (isSupersetSelectionInvalid || selectedSupersetExercises.length < 2) {
+      return;
+    }
+
+    const supersetId = selectedExistingSupersetId ?? `superset-${Date.now()}`;
+    const [firstExercise, secondExercise, ...remainingExercises] = selectedSupersetExercises;
+
+    if (!selectedExistingSupersetId) {
+      onCreateExerciseSuperset(workoutId, firstExercise.id, secondExercise.id, supersetId);
+    }
+
+    [firstExercise, secondExercise, ...remainingExercises].forEach((exercise) => {
+      if (exercise.supersetId !== supersetId) {
+        onSetExerciseSuperset(workoutId, exercise.id, supersetId);
+      }
+    });
+
+    clearSupersetSelection();
   };
 
   return (
@@ -414,6 +500,57 @@ export default function WorkoutDetails({
             </Text>
           ) : null}
 
+          <View style={styles.supersetToolbar}>
+            <Pressable
+              style={[
+                styles.supersetToolbarButton,
+                isSupersetSelectionMode && styles.supersetToolbarButtonActive,
+              ]}
+              onPress={() => {
+                if (isSupersetSelectionMode) {
+                  clearSupersetSelection();
+                  return;
+                }
+
+                setIsSupersetSelectionMode(true);
+              }}
+            >
+              <Text style={styles.supersetToolbarButtonText}>
+                {isSupersetSelectionMode ? 'Cancel superset' : 'New superset'}
+              </Text>
+            </Pressable>
+          </View>
+
+          {isSupersetSelectionMode ? (
+            <View style={styles.supersetBanner}>
+              <Text style={styles.supersetBannerText}>
+                {isSupersetSelectionInvalid
+                  ? 'Select exercises from only one existing superset at a time.'
+                  : selectedExistingSupersetId
+                    ? `Select exercises to add to ${supersetMetaById[selectedExistingSupersetId]?.label ?? 'this superset'}.`
+                    : 'Select 2 or more exercises to create a superset.'}
+              </Text>
+              <View style={styles.supersetBannerActions}>
+                <Text style={styles.supersetSelectionCount}>
+                  {selectedSupersetExerciseIds.length} selected
+                </Text>
+                <Pressable
+                  style={[
+                    styles.supersetBannerButton,
+                    (isSupersetSelectionInvalid || selectedSupersetExerciseIds.length < 2) &&
+                      styles.supersetBannerButtonDisabled,
+                  ]}
+                  onPress={handleApplySupersetSelection}
+                  disabled={isSupersetSelectionInvalid || selectedSupersetExerciseIds.length < 2}
+                >
+                  <Text style={styles.supersetBannerButtonText}>
+                    {selectedExistingSupersetId ? 'Apply' : 'Create'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+
           <View
             ref={workoutListZoneRef}
             collapsable={false}
@@ -440,10 +577,23 @@ export default function WorkoutDetails({
                 const categoryMeta = getCategoryDisplay(
                   linkedExercise?.category ?? item.category
                 );
+                const supersetMeta = item.supersetId
+                  ? supersetMetaById[item.supersetId] ?? null
+                  : null;
+                const isSupersetSelected = selectedSupersetExerciseIds.includes(item.id);
 
                 return (
                   <Pressable
-                    style={[styles.itemRow, isActive && styles.itemRowActive]}
+                    style={[
+                      styles.itemRow,
+                      supersetMeta && {
+                        borderLeftWidth: 6,
+                        borderLeftColor: supersetMeta.color,
+                      },
+                      isSupersetSelectionMode && styles.itemRowSelectable,
+                      isSupersetSelected && styles.itemRowSelectedForSuperset,
+                      isActive && styles.itemRowActive,
+                    ]}
                     delayLongPress={180}
                     onLongPress={() => handleItemLongPress(onDragStart)}
                     onPressOut={() => handleItemPressOut(onDragEnd)}
@@ -455,6 +605,11 @@ export default function WorkoutDetails({
                         onLongPress={() => handleItemLongPress(onDragStart)}
                         onPressOut={() => handleItemPressOut(onDragEnd)}
                         onPress={() => {
+                          if (isSupersetSelectionMode) {
+                            toggleSupersetSelection(item);
+                            return;
+                          }
+
                           if (shouldSkipTap()) {
                             return;
                           }
@@ -494,6 +649,49 @@ export default function WorkoutDetails({
                       >
                         <Text style={styles.deleteButtonText}>Delete</Text>
                       </Pressable>
+                    </View>
+                    <View style={styles.supersetRow}>
+                      <View style={styles.supersetInfoRow}>
+                        {supersetMeta ? (
+                          <>
+                            <View
+                              style={[
+                                styles.supersetBadge,
+                                { backgroundColor: supersetMeta.color },
+                              ]}
+                            >
+                              <Text style={styles.supersetBadgeText}>{supersetMeta.label}</Text>
+                            </View>
+                            <Pressable
+                              style={styles.supersetRemoveButton}
+                              onPress={() => handleRemoveFromSuperset(item)}
+                            >
+                              <Text style={styles.supersetRemoveButtonText}>Ungroup</Text>
+                            </Pressable>
+                          </>
+                        ) : (
+                          <Text style={styles.supersetHintText}>Not grouped</Text>
+                        )}
+                      </View>
+
+                      {isSupersetSelectionMode ? (
+                        <Pressable
+                          style={[
+                            styles.supersetSelectionIndicator,
+                            isSupersetSelected && styles.supersetSelectionIndicatorActive,
+                          ]}
+                          onPress={() => toggleSupersetSelection(item)}
+                        >
+                          <Text
+                            style={[
+                              styles.supersetSelectionIndicatorText,
+                              isSupersetSelected && styles.supersetSelectionIndicatorTextActive,
+                            ]}
+                          >
+                            {isSupersetSelected ? 'Selected' : 'Select'}
+                          </Text>
+                        </Pressable>
+                      ) : null}
                     </View>
                     <View style={styles.metricsRow}>
                       <TextInput
@@ -728,6 +926,63 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginBottom: 10,
   },
+  supersetToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    marginBottom: 10,
+  },
+  supersetToolbarButton: {
+    backgroundColor: '#111827',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  supersetToolbarButtonActive: {
+    backgroundColor: '#2563eb',
+  },
+  supersetToolbarButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  supersetBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#e0f2fe',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  supersetBannerText: {
+    flex: 1,
+    color: '#0f172a',
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  supersetBannerActions: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  supersetSelectionCount: {
+    color: '#334155',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  supersetBannerButton: {
+    backgroundColor: '#ffffff',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  supersetBannerButtonDisabled: {
+    opacity: 0.45,
+  },
+  supersetBannerButtonText: {
+    color: '#0f172a',
+    fontWeight: '600',
+    fontSize: 12,
+  },
   workoutListZone: {
     borderWidth: 1,
     borderColor: 'transparent',
@@ -750,6 +1005,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 8,
   },
+  itemRowSelectable: {
+    borderColor: '#cbd5e1',
+  },
+  itemRowSelectedForSuperset: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#2563eb',
+  },
   itemRowActive: {
     opacity: 0.9,
     borderColor: '#9ca3af',
@@ -758,6 +1020,62 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
+  },
+  supersetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    gap: 8,
+  },
+  supersetInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  supersetBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  supersetBadgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  supersetHintText: {
+    color: '#6b7280',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  supersetSelectionIndicator: {
+    backgroundColor: '#e5e7eb',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  supersetSelectionIndicatorActive: {
+    backgroundColor: '#2563eb',
+  },
+  supersetSelectionIndicatorText: {
+    color: '#111827',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  supersetSelectionIndicatorTextActive: {
+    color: '#ffffff',
+  },
+  supersetRemoveButton: {
+    backgroundColor: '#e5e7eb',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  supersetRemoveButtonText: {
+    color: '#111827',
+    fontSize: 12,
+    fontWeight: '600',
   },
   itemInfoRow: {
     flex: 1,

@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   FlatList,
+  Keyboard,
   Pressable,
   SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 
@@ -70,99 +72,101 @@ export default function Exercises({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Exercises</Text>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.title}>Exercises</Text>
 
-      <View style={styles.formRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter exercise"
-          value={exerciseName}
-          onChangeText={setExerciseName}
-          onSubmitEditing={handleAddExercise}
-        />
-        <Pressable style={styles.addButton} onPress={handleAddExercise}>
-          <Text style={styles.addButtonText}>Add</Text>
-        </Pressable>
-      </View>
+        <View style={styles.formRow}>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter exercise"
+            value={exerciseName}
+            onChangeText={setExerciseName}
+            onSubmitEditing={handleAddExercise}
+          />
+          <Pressable style={styles.addButton} onPress={handleAddExercise}>
+            <Text style={styles.addButtonText}>Add</Text>
+          </Pressable>
+        </View>
 
-      <FlatList
-        data={weightExercises}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        renderItem={({ item }) => {
-          const categoryMeta = getCategoryDisplay(item.category);
+        <FlatList
+          data={weightExercises}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => {
+            const categoryMeta = getCategoryDisplay(item.category);
 
-          return (
-            <View style={styles.itemRow}>
-              <View style={styles.topRow}>
-                <Pressable
-                  style={styles.itemTitleButton}
-                  onPress={() =>
-                    navigation.navigate('ExerciseDetails', {
-                      exerciseId: item.id,
-                      title: item.name,
-                    })
-                  }
-                >
-                  <View style={styles.titleRow}>
-                    <Text style={styles.itemText}>{item.name}</Text>
-                    <View
-                      style={[
-                        styles.categoryPill,
-                        { backgroundColor: categoryMeta.color },
-                      ]}
-                    >
-                      <Text style={styles.categoryPillText}>{categoryMeta.label}</Text>
+            return (
+              <View style={styles.itemRow}>
+                <View style={styles.topRow}>
+                  <Pressable
+                    style={styles.itemTitleButton}
+                    onPress={() =>
+                      navigation.navigate('ExerciseDetails', {
+                        exerciseId: item.id,
+                        title: item.name,
+                      })
+                    }
+                  >
+                    <View style={styles.titleRow}>
+                      <Text style={styles.itemText}>{item.name}</Text>
+                      <View
+                        style={[
+                          styles.categoryPill,
+                          { backgroundColor: categoryMeta.color },
+                        ]}
+                      >
+                        <Text style={styles.categoryPillText}>{categoryMeta.label}</Text>
+                      </View>
                     </View>
-                  </View>
-                </Pressable>
-                <Pressable
-                  style={styles.deleteButton}
-                  onPress={() => onDeleteWeightExercise(item.id)}
-                >
-                  <Text style={styles.deleteButtonText}>Delete</Text>
-                </Pressable>
+                  </Pressable>
+                  <Pressable
+                    style={styles.deleteButton}
+                    onPress={() => onDeleteWeightExercise(item.id)}
+                  >
+                    <Text style={styles.deleteButtonText}>Delete</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.metricsRow}>
+                  <TextInput
+                    style={styles.metricInput}
+                    placeholder="sets"
+                    keyboardType="numeric"
+                    value={item.sets ?? ''}
+                    onChangeText={(value) =>
+                      onUpdateWeightExercise(item.id, { sets: value })
+                    }
+                  />
+                  <TextInput
+                    style={styles.metricInput}
+                    placeholder="reps"
+                    keyboardType="numeric"
+                    value={item.reps ?? ''}
+                    onChangeText={(value) =>
+                      onUpdateWeightExercise(item.id, { reps: value })
+                    }
+                  />
+                  <TextInput
+                    style={styles.metricInput}
+                    placeholder="weight (lb)"
+                    keyboardType="numeric"
+                    value={item.weightLb ?? ''}
+                    onChangeText={(value) =>
+                      onUpdateWeightExercise(item.id, { weightLb: value })
+                    }
+                  />
+                </View>
               </View>
-              <View style={styles.metricsRow}>
-                <TextInput
-                  style={styles.metricInput}
-                  placeholder="sets"
-                  keyboardType="numeric"
-                  value={item.sets ?? ''}
-                  onChangeText={(value) =>
-                    onUpdateWeightExercise(item.id, { sets: value })
-                  }
-                />
-                <TextInput
-                  style={styles.metricInput}
-                  placeholder="reps"
-                  keyboardType="numeric"
-                  value={item.reps ?? ''}
-                  onChangeText={(value) =>
-                    onUpdateWeightExercise(item.id, { reps: value })
-                  }
-                />
-                <TextInput
-                  style={styles.metricInput}
-                  placeholder="weight (lb)"
-                  keyboardType="numeric"
-                  value={item.weightLb ?? ''}
-                  onChangeText={(value) =>
-                    onUpdateWeightExercise(item.id, { weightLb: value })
-                  }
-                />
-              </View>
-            </View>
-          );
-        }}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No exercises yet.</Text>
-        }
-      />
+            );
+          }}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>No exercises yet.</Text>
+          }
+        />
 
-      <StatusBar style="auto" />
-    </SafeAreaView>
+        <StatusBar style="auto" />
+      </SafeAreaView>
+    </TouchableWithoutFeedback>
   );
 }
 
