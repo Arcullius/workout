@@ -597,6 +597,13 @@ export default function WorkoutDetails({
                     delayLongPress={180}
                     onLongPress={() => handleItemLongPress(onDragStart)}
                     onPressOut={() => handleItemPressOut(onDragEnd)}
+                    onPress={() => {
+                      if (!isSupersetSelectionMode) {
+                        return;
+                      }
+
+                      toggleSupersetSelection(item);
+                    }}
                   >
                     <View style={styles.itemTopRow}>
                       <Pressable
@@ -640,6 +647,11 @@ export default function WorkoutDetails({
                         onLongPress={() => handleItemLongPress(onDragStart)}
                         onPressOut={() => handleItemPressOut(onDragEnd)}
                         onPress={() => {
+                          if (isSupersetSelectionMode) {
+                            toggleSupersetSelection(item);
+                            return;
+                          }
+
                           if (shouldSkipTap()) {
                             return;
                           }
@@ -664,7 +676,14 @@ export default function WorkoutDetails({
                             </View>
                             <Pressable
                               style={styles.supersetRemoveButton}
-                              onPress={() => handleRemoveFromSuperset(item)}
+                              onPress={() => {
+                                if (isSupersetSelectionMode) {
+                                  toggleSupersetSelection(item);
+                                  return;
+                                }
+
+                                handleRemoveFromSuperset(item);
+                              }}
                             >
                               <Text style={styles.supersetRemoveButtonText}>Ungroup</Text>
                             </Pressable>
